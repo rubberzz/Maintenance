@@ -432,7 +432,16 @@
                                 }
                             } catch (error) {
                                 console.error("Sign in error:", error);
-                                showToast("Authentication Failed", "error");
+                                
+                                // Handle specific setup errors gracefully
+                                if (error.code === 'auth/configuration-not-found' || error.code === 'auth/admin-restricted-operation') {
+                                    showToast("Auth Disabled: Enable Anonymous Auth in Firebase Console", "warning");
+                                } else {
+                                    showToast("Authentication Failed: Public Mode Active", "error");
+                                }
+                                
+                                // CRITICAL FIX: Stop loading even if auth fails so app is usable
+                                setLoading(false);
                             }
                         }
                     });
@@ -442,21 +451,38 @@
             }, []);
 
             useEffect(() => {
-                if (!user) return;
+                // Modified: Allow data fetching even if user is null (Public Mode)
+                // if (!user) return; // Removed strict check to allow public read
                 
                 // USE PUBLIC COLLECTION REF
+                const handleReadError = (err) => {
+                    console.error("Read Error:", err);
+                    setLoading(false);
+                    if (err.code === 'permission-denied') {
+                        setModal({
+                            isOpen: true,
+                            title: "Database Locked",
+                            message: "Your database rules are blocking access. Go to Firebase Console > Firestore > Rules and change 'allow read, write: if false;' to 'allow read, write: if true;'",
+                            onConfirm: () => {}
+                        });
+                    }
+                };
+
                 const unsubInvoices = getCollectionRef('invoices').onSnapshot(snap => {
                     setInvoices(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
                     setLoading(false);
-                });
+                }, handleReadError);
+
                 const unsubClients = getCollectionRef('clients').onSnapshot(snap => {
                     setClients(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => a.name.localeCompare(b.name)));
-                });
+                }, (err) => console.error("Client Read Error:", err));
+
                 const unsubSettings = getCollectionRef('settings').doc('preferences').onSnapshot(doc => {
                     if (doc.exists) setSettings(doc.data());
-                });
+                }, (err) => console.error("Settings Read Error:", err));
+
                 return () => { unsubInvoices(); unsubClients(); unsubSettings(); };
-            }, [user]);
+            }, [user]); // Keep user dependency to re-subscribe if auth status changes
 
             // --- KEYBOARD SHORTCUTS ---
             useEffect(() => {
