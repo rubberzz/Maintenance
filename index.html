@@ -38,6 +38,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <!-- 4. Firebase (Compat) -->
+    <!-- We use the compat libraries to maintain compatibility with the existing React code structure -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -117,14 +118,16 @@
             } catch (e) { console.error(e); }
         } 
         
+        // ⚠️ IMPORTANT: When hosting on GitHub Pages, we use the user provided config
         if (!firebaseConfig) {
             firebaseConfig = {
-                apiKey: "REPLACE_WITH_YOUR_API_KEY",
-                authDomain: "REPLACE_WITH_YOUR_PROJECT_ID.firebaseapp.com",
-                projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
-                storageBucket: "REPLACE_WITH_YOUR_PROJECT_ID.firebasestorage.app",
-                messagingSenderId: "REPLACE_WITH_YOUR_SENDER_ID",
-                appId: "REPLACE_WITH_YOUR_APP_ID"
+                apiKey: "AIzaSyAlMLh54BsFGz4MCt5iTT3PHSbSZwYoSuw",
+                authDomain: "maintenance-5b542.firebaseapp.com",
+                projectId: "maintenance-5b542",
+                storageBucket: "maintenance-5b542.firebasestorage.app",
+                messagingSenderId: "1052582668108",
+                appId: "1:1052582668108:web:dba7dcbf25e620e15e51e9",
+                measurementId: "G-V4XC2DJELV"
             };
         }
 
