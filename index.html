@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maintenance Invoicer</title>
+    
+    <!-- 1. Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'slide-up': 'slideUp 0.5s ease-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- 2. React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- 3. Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 4. Firebase (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <!-- 5. Chart.js (For Analytics) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- 6. html2pdf (For PDF Generation) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        /* Hide scrollbar */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; }
+            .print-container { box-shadow: none; margin: 0; width: 100%; max-width: none; }
+        }
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 50;
+        }
+        /* Custom Scrollbar for dropdowns */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans h-screen overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- ICONS ---
+        const Icons = {
+            Plus: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
+            Trash2: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>,
+            Printer: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>,
+            Save: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+            FileText: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>,
+            ChevronLeft: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>,
+            LayoutDashboard: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>,
+            Wrench: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>,
+            Hammer: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 12-8.5 8.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0a2.12 2.12 0 0 1 0-3L12 9"/><path d="M17.64 15 22 10.64"/><path d="m20.91 11.7-1.25-1.25c-.6-.6-.93-1.4-.93-2.25V7.86c0-.55-.45-1-1-1H14c-.55 0-1 .45-1 1v3.8c0 .85-.34 1.66-.93 2.25L10.82 15"/></svg>,
+            User: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+            MapPin: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>,
+            CheckCircle: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+            Clock: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+            AlertCircle: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
+            Search: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+            CreditCard: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>,
+            AlignLeft: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>,
+            FileAxis3d: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m8 13 4 4"/><path d="m8 17 4-4"/></svg>,
+            ArrowRight: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>,
+            Users: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+            Settings: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>,
+            Mail: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>,
+            Building: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>,
+            Phone: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
+            Bell: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>,
+            Copy: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>,
+            Filter: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
+            ChevronDown: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>,
+            Download: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+        };
+
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- FIREBASE CONFIGURATION ---
+        let firebaseConfig;
+        if (typeof __firebase_config !== 'undefined') {
+            try {
+                firebaseConfig = JSON.parse(__firebase_config);
+            } catch (e) { console.error(e); }
+        } 
+        
+        if (!firebaseConfig) {
+            firebaseConfig = {
+                apiKey: "REPLACE_WITH_YOUR_API_KEY",
+                authDomain: "REPLACE_WITH_YOUR_PROJECT_ID.firebaseapp.com",
+                projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
+                storageBucket: "REPLACE_WITH_YOUR_PROJECT_ID.firebasestorage.app",
+                messagingSenderId: "REPLACE_WITH_YOUR_SENDER_ID",
+                appId: "REPLACE_WITH_YOUR_APP_ID"
+            };
+        }
+
+        try {
+            firebase.initializeApp(firebaseConfig);
+        } catch(e) {
+            console.error("Firebase Init Error:", e);
+        }
+
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'maintenance-invoicer';
+
+        // --- CONSTANTS ---
+        const PREDEFINED_SERVICES_DEFAULTS = [
+            { id: 'custom', label: 'Custom Item...', description: '', rate: 0 },
+            { id: 'callout', label: 'Call Out Fee (Standard)', description: 'Standard Call Out Fee', rate: 550 },
+            { id: 'callout_ah', label: 'Call Out Fee (After Hours)', description: 'Emergency / After Hours Call Out', rate: 850 },
+            { id: 'labor_gen', label: 'Labour (General)', description: 'General Maintenance Labour', rate: 450 },
+            { id: 'labor_special', label: 'Labour (Specialist)', description: 'Specialist / Technical Labour', rate: 650 },
+            { id: 'fuel', label: 'Fuel / Travel Costs', description: 'Travel & Fuel Charges', rate: 8.50 },
+            { id: 'consumables', label: 'Small Consumables', description: 'Fixings, Sealants & Consumables', rate: 150 },
+        ];
+
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+
+        const formatCurrency = (amount) => {
+            return new Intl.NumberFormat('en-ZA', {
+                style: 'currency',
+                currency: 'ZAR',
+                minimumFractionDigits: 2
+            }).format(amount);
+        };
+
+        const formatDate = (dateString) => {
+            if (!dateString) return '';
+            return new Date(dateString).toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' });
+        };
+
+        const calculateTotals = (items, discountVal, discountType, taxRate, deposit = 0) => {
+            const subtotal = items.reduce((acc, item) => acc + (item.quantity * item.rate), 0);
+            const totalCost = items.reduce((acc, item) => acc + (item.quantity * (item.cost || 0)), 0);
+            
+            let discountAmount = discountType === 'percent' ? subtotal * (discountVal / 100) : discountVal;
+            discountAmount = Math.min(discountAmount, subtotal);
+            const subtotalAfterDiscount = subtotal - discountAmount;
+            const taxAmount = subtotalAfterDiscount * (taxRate / 100);
+            const total = subtotalAfterDiscount + taxAmount;
+            
+            const profit = subtotalAfterDiscount - totalCost;
+            const margin = subtotalAfterDiscount > 0 ? (profit / subtotalAfterDiscount) * 100 : 0;
+
+            return { subtotal, discountAmount, taxAmount, total, balanceDue: total - deposit, depositRequired60: total * 0.60, totalCost, profit, margin };
+        };
+
+        // --- COMPONENTS ---
+        const Button = ({ children, variant = 'primary', className, ...props }) => {
+            const variants = {
+                primary: "bg-blue-600 text-white hover:bg-blue-700 shadow-sm",
+                secondary: "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 shadow-sm",
+                danger: "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100",
+                ghost: "text-slate-600 hover:bg-slate-100",
+                success: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm",
+                warning: "bg-amber-500 text-white hover:bg-amber-600 shadow-sm",
+            };
+            return <button className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${className || ''}`} {...props}>{children}</button>;
+        };
+
+        const Input = ({ label, error, className, ...props }) => (
+            <div className={`flex flex-col gap-1.5 ${className || ''}`}>
+                {label && <label className="text-sm font-semibold text-slate-700">{label}</label>}
+                <input className={`px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all ${error ? "border-red-300 bg-red-50" : "border-slate-300 bg-white"}`} {...props} />
+            </div>
+        );
+
+        const Badge = ({ status }) => {
+            const styles = {
+                Draft: "bg-slate-100 text-slate-600 border-slate-200", Quote: "bg-indigo-50 text-indigo-700 border-indigo-200",
+                Pending: "bg-amber-50 text-amber-700 border-amber-200", Paid: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                Overdue: "bg-red-50 text-red-700 border-red-200", Deposit: "bg-purple-50 text-purple-700 border-purple-200",
+            };
+            const icons = { Draft: Icons.FileText, Quote: Icons.FileAxis3d, Pending: Icons.Clock, Paid: Icons.CheckCircle, Overdue: Icons.AlertCircle, Deposit: Icons.CreditCard };
+            const IconComp = icons[status] || Icons.FileText;
+            return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1.5 w-fit ${styles[status] || styles.Draft}`}><IconComp width="12" height="12" />{status}</span>;
+        };
+
+        // Custom Searchable Dropdown
+        const ClientSelect = ({ clients, value, onSelect }) => {
+            const [isOpen, setIsOpen] = useState(false);
+            const [search, setSearch] = useState('');
+            const wrapperRef = useRef(null);
+
+            useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+                        setIsOpen(false);
+                    }
+                };
+                document.addEventListener("mousedown", handleClickOutside);
+                return () => document.removeEventListener("mousedown", handleClickOutside);
+            }, [wrapperRef]);
+
+            const filteredClients = clients.filter(c => 
+                c.name.toLowerCase().includes(search.toLowerCase())
+            );
+
+            return (
+                <div className="relative" ref={wrapperRef}>
+                    <div 
+                        className="w-full p-2 border rounded bg-white flex justify-between items-center cursor-pointer"
+                        onClick={() => setIsOpen(!isOpen)}
+                    >
+                        <span className={value ? "text-slate-900" : "text-slate-400"}>
+                            {value || "Select a Client..."}
+                        </span>
+                        <Icons.ChevronDown className="w-4 h-4 text-slate-400"/>
+                    </div>
+                    
+                    {isOpen && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
+                            <div className="p-2 border-b">
+                                <input 
+                                    className="w-full p-1 border rounded text-sm focus:outline-none focus:border-blue-500"
+                                    placeholder="Search..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="overflow-y-auto custom-scroll flex-1">
+                                {filteredClients.length === 0 && (
+                                    <div className="p-3 text-sm text-slate-400 text-center">No clients found</div>
+                                )}
+                                {filteredClients.map(client => (
+                                    <div 
+                                        key={client.id}
+                                        className="p-3 text-sm hover:bg-slate-50 cursor-pointer border-b last:border-0"
+                                        onClick={() => {
+                                            onSelect(client);
+                                            setIsOpen(false);
+                                            setSearch('');
+                                        }}
+                                    >
+                                        <div className="font-medium text-slate-800">{client.name}</div>
+                                        {client.email && <div className="text-xs text-slate-500">{client.email}</div>}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // Revenue Chart Component
+        const RevenueChart = ({ invoices }) => {
+            const chartRef = useRef(null);
+            const canvasRef = useRef(null);
+
+            useEffect(() => {
+                if (!canvasRef.current) return;
+
+                // Process Data: Last 6 months
+                const months = [];
+                const revenueData = [];
+                const profitData = [];
+                
+                const today = new Date();
+                for (let i = 5; i >= 0; i--) {
+                    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+                    const monthKey = d.toLocaleString('default', { month: 'short', year: '2-digit' });
+                    months.push(monthKey);
+                    
+                    // Filter invoices for this month
+                    const monthlyInvoices = invoices.filter(inv => {
+                        if (inv.status === 'Quote' || inv.status === 'Draft') return false;
+                        const invDate = new Date(inv.date);
+                        return invDate.getMonth() === d.getMonth() && invDate.getFullYear() === d.getFullYear();
+                    });
+
+                    const rev = monthlyInvoices.reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
+                    
+                    // Calculate profit (assuming we saved cost data, if not it defaults to 0 cost -> high profit, 
+                    // ideally we'd re-calculate using the helper if cost wasn't stored in early versions)
+                    const profit = monthlyInvoices.reduce((sum, inv) => {
+                        const cost = (inv.items || []).reduce((c, item) => c + (item.quantity * (item.cost || 0)), 0);
+                        return sum + ((inv.subtotal || 0) - cost);
+                    }, 0);
+
+                    revenueData.push(rev);
+                    profitData.push(profit);
+                }
+
+                if (chartRef.current) chartRef.current.destroy();
+
+                chartRef.current = new Chart(canvasRef.current, {
+                    type: 'bar',
+                    data: {
+                        labels: months,
+                        datasets: [
+                            { label: 'Revenue', data: revenueData, backgroundColor: '#3b82f6', borderRadius: 4 },
+                            { label: 'Profit', data: profitData, backgroundColor: '#10b981', borderRadius: 4 }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } },
+                        scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
+                    }
+                });
+
+                return () => { if(chartRef.current) chartRef.current.destroy(); };
+            }, [invoices]);
+
+            return <canvas ref={canvasRef} />;
+        };
+
+        // --- MAIN APP ---
+        function App() {
+            const [user, setUser] = useState(null);
+            const [view, setView] = useState('dashboard');
+            const [invoices, setInvoices] = useState([]);
+            const [clients, setClients] = useState([]);
+            const [settings, setSettings] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [currentInvoice, setCurrentInvoice] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [filter, setFilter] = useState('All');
+            const [modal, setModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+            const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
+            
+            // New State for UI Logic
+            const [showCosts, setShowCosts] = useState(false);
+
+            const showToast = (message, type = 'info') => {
+                setToast({ show: true, message, type });
+                setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
+            };
+
+            // --- COMPUTED SERVICES WITH CUSTOM RATES ---
+            const availableServices = useMemo(() => {
+                const rates = settings?.serviceRates || {};
+                return PREDEFINED_SERVICES_DEFAULTS.map(service => ({
+                    ...service,
+                    rate: rates[service.id] !== undefined ? Number(rates[service.id]) : service.rate
+                }));
+            }, [settings]);
+
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await auth.signInWithCustomToken(__initial_auth_token);
+                        else await auth.signInAnonymously();
+                    } catch (error) {
+                        console.error("Auth failed:", error);
+                        showToast("Authentication Error", "error");
+                    }
+                };
+                initAuth();
+                return auth.onAuthStateChanged((u) => { setUser(u); if (!u) setLoading(false); });
+            }, []);
+
+            useEffect(() => {
+                if (!user) return;
+                const unsubInvoices = db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('invoices').onSnapshot(snap => {
+                    setInvoices(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+                    setLoading(false);
+                });
+                const unsubClients = db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('clients').onSnapshot(snap => {
+                    setClients(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => a.name.localeCompare(b.name)));
+                });
+                const unsubSettings = db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('settings').doc('preferences').onSnapshot(doc => {
+                    if (doc.exists) setSettings(doc.data());
+                });
+                return () => { unsubInvoices(); unsubClients(); unsubSettings(); };
+            }, [user]);
+
+            // --- HELPER: CLEAN DATA FOR FIRESTORE ---
+            const cleanDataForFirestore = (obj) => {
+                const newObj = {};
+                Object.keys(obj).forEach(key => {
+                    const val = obj[key];
+                    if (val !== undefined) {
+                        if (Array.isArray(val)) {
+                            newObj[key] = val.map(item => cleanDataForFirestore(item));
+                        } else if (val && typeof val === 'object' && !(val instanceof Date)) {
+                             if (val.constructor && val.constructor.name === 'FieldValue') {
+                                 newObj[key] = val;
+                             } else {
+                                newObj[key] = cleanDataForFirestore(val);
+                             }
+                        } else {
+                            newObj[key] = val;
+                        }
+                    }
+                });
+                return newObj;
+            };
+
+            // --- SAVE INVOICE (Manual) ---
+            const saveInvoice = async () => {
+                if (!user || !currentInvoice) return;
+                setLoading(true);
+                
+                const items = currentInvoice.items || [];
+                const discountVal = Number(currentInvoice.discountValue) || 0;
+                const discountType = currentInvoice.discountType || 'amount';
+                const taxRate = Number(currentInvoice.taxRate) || 0;
+                const deposit = Number(currentInvoice.deposit) || 0;
+                const { subtotal, total, balanceDue } = calculateTotals(items, discountVal, discountType, taxRate, deposit);
+                
+                const docData = { 
+                    ...currentInvoice,
+                    items: items.map(i => ({
+                        id: i.id || generateId(),
+                        description: i.description || '',
+                        quantity: Number(i.quantity)||0, 
+                        rate: Number(i.rate)||0,
+                        cost: Number(i.cost)||0, // Added Cost
+                        type: i.type || 'labor'
+                    })),
+                    discountValue: discountVal,
+                    discountType: discountType,
+                    taxRate: taxRate,
+                    deposit: deposit,
+                    subtotal, total, balanceDue, 
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp() 
+                };
+                
+                delete docData.id; 
+                const cleanData = cleanDataForFirestore(docData);
+
+                try {
+                    const ref = db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('invoices');
+                    if (currentInvoice.id) {
+                        await ref.doc(currentInvoice.id).update(cleanData);
+                    } else {
+                        await ref.add({ ...cleanData, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    }
+                    setView('list');
+                    showToast("Document saved successfully", "success");
+                } catch(e) { 
+                    console.error("SAVE ERROR:", e); 
+                    showToast("Error saving: " + e.message, "error"); 
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // --- ACTIONS ---
+            const handleDuplicateClick = () => {
+                setModal({ isOpen: true, title: 'Duplicate Document', message: 'Create a copy of this document?', onConfirm: duplicateDocument });
+            };
+
+            const duplicateDocument = async () => {
+                if (!user || !currentInvoice) return;
+                setLoading(true);
+                try {
+                    const newItems = (currentInvoice.items || []).map(item => ({...item, id: generateId()}));
+                    const baseData = {
+                        number: `${currentInvoice.number}-COPY`,
+                        status: 'Draft',
+                        date: new Date().toISOString().split('T')[0],
+                        dueDate: currentInvoice.dueDate || "",
+                        clientName: currentInvoice.clientName || "",
+                        clientEmail: currentInvoice.clientEmail || "",
+                        billingAddress: currentInvoice.billingAddress || "",
+                        workDescription: currentInvoice.workDescription || "",
+                        notes: currentInvoice.notes || "",
+                        discountValue: Number(currentInvoice.discountValue) || 0,
+                        discountType: currentInvoice.discountType || 'amount',
+                        taxRate: Number(currentInvoice.taxRate) || 15,
+                        deposit: 0,
+                        items: newItems
+                    };
+                    const { subtotal, total, balanceDue } = calculateTotals(newItems, baseData.discountValue, baseData.discountType, baseData.taxRate, 0);
+                    baseData.subtotal = subtotal; baseData.total = total; baseData.balanceDue = balanceDue;
+
+                    const dbPayload = cleanDataForFirestore({ ...baseData, createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    const ref = db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('invoices');
+                    const docRef = await ref.add(dbPayload);
+                    setCurrentInvoice({ ...baseData, id: docRef.id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+                    showToast("Duplicated Successfully!", "success");
+                } catch(e) { console.error(e); showToast("Failed to duplicate", "error"); } finally { setLoading(false); }
+            };
+
+            const handleConvertClick = () => {
+                let newNumber = currentInvoice.number || '';
+                if (newNumber.startsWith('QT')) newNumber = newNumber.replace('QT', 'INV');
+                else if (!newNumber.startsWith('INV')) newNumber = `INV-${newNumber}`;
+                setModal({ isOpen: true, title: 'Convert to Invoice', message: `Convert to Invoice ${newNumber}?`, onConfirm: () => convertToInvoice(newNumber) });
+            };
+
+            const convertToInvoice = async (newNumber) => {
+                if (!user || !currentInvoice) return;
+                
+                // Store the ID of the quote so we can delete it after creating the invoice
+                const quoteIdToDelete = currentInvoice.id;
+
+                setLoading(true);
+                try {
+                    const newItems = (currentInvoice.items || []).map(item => ({...item, id: generateId()}));
+                    const baseData = {
+                        number: newNumber,
+                        status: 'Draft',
+                        date: new Date().toISOString().split('T')[0],
+                        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], 
+                        clientName: currentInvoice.clientName || "",
+                        clientEmail: currentInvoice.clientEmail || "",
+                        billingAddress: currentInvoice.billingAddress || "",
+                        workDescription: currentInvoice.workDescription || "",
+                        notes: currentInvoice.notes || "",
+                        discountValue: Number(currentInvoice.discountValue) || 0,
+                        discountType: currentInvoice.discountType || 'amount',
+                        taxRate: Number(currentInvoice.taxRate) || 15,
+                        deposit: 0,
+                        items: newItems
+                    };
+                    const { subtotal, total, balanceDue } = calculateTotals(newItems, baseData.discountValue, baseData.discountType, baseData.taxRate, 0);
+                    baseData.subtotal = subtotal; baseData.total = total; baseData.balanceDue = balanceDue;
+
+                    const dbPayload = cleanDataForFirestore({ ...baseData, createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    const ref = db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('invoices');
+                    
+                    // 1. Create the new Invoice
+                    const docRef = await ref.add(dbPayload);
+
+                    // 2. Delete the old Quote
+                    if (quoteIdToDelete) {
+                        await ref.doc(quoteIdToDelete).delete();
+                    }
+
+                    // 3. Switch view to the new Invoice
+                    setCurrentInvoice({ ...baseData, id: docRef.id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+                    showToast("Converted & Quote Deleted!", "success");
+                } catch(e) { console.error(e); showToast("Failed to convert", "error"); } finally { setLoading(false); }
+            };
+
+            const deleteDocHandler = async (id, collectionName = 'invoices') => {
+                setModal({
+                    isOpen: true, title: 'Delete Item', message: 'Are you sure?',
+                    onConfirm: async () => {
+                        try {
+                            await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection(collectionName).doc(id).delete();
+                            if(collectionName === 'invoices' && view === 'editor') setView('list');
+                            showToast("Deleted successfully", "success");
+                        } catch(e) { console.error(e); showToast("Error deleting", "error"); }
+                    }
+                });
+            }
+
+            const saveClient = async (clientData) => {
+                try {
+                    const ref = db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('clients');
+                    if (clientData.id) await ref.doc(clientData.id).update(clientData);
+                    else await ref.add({ ...clientData, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    showToast("Client saved", "success");
+                } catch(e) { console.error(e); showToast("Error saving client", "error"); }
+            };
+
+            const saveSettingsHandler = async (data) => {
+                try {
+                    await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('settings').doc('preferences').set(data);
+                    showToast("Settings Saved", "success");
+                } catch(e) { console.error(e); showToast("Error saving settings", "error"); }
+            };
+
+            const createNew = (type) => {
+                const isQuote = type === 'quote';
+                const prefix = isQuote ? 'QT-' : 'INV-';
+                const num = String(invoices.length + 1).padStart(4, '0');
+                const calloutService = availableServices.find(s => s.id === 'callout');
+                const defaultRate = isQuote ? 0 : (calloutService ? calloutService.rate : 550);
+
+                const newItem = {
+                    number: `${prefix}${num}`,
+                    status: isQuote ? 'Quote' : 'Draft',
+                    date: new Date().toISOString().split('T')[0],
+                    dueDate: new Date(Date.now() + (isQuote ? 30 : 14) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                    clientName: '', clientEmail: '', billingAddress: '', workDescription: '',
+                    items: [{ id: generateId(), description: isQuote ? 'Labor Estimate' : 'Call Out Fee', type: 'labor', quantity: 1, rate: defaultRate, cost: 0 }],
+                    notes: settings?.defaultNotes || '',
+                    subtotal: 0, discountValue: 0, discountType: 'amount', taxRate: 15, deposit: 0, total: 0
+                };
+                setCurrentInvoice(newItem);
+                setView('editor');
+            };
+
+            // Filtering
+            const filteredInvoices = invoices.filter(inv => {
+                const match = inv.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) || inv.number?.toLowerCase().includes(searchTerm.toLowerCase());
+                if (!match) return false;
+                if (filter === 'Quote') return inv.status === 'Quote';
+                if (filter === 'Paid') return inv.status === 'Paid';
+                if (filter === 'Unpaid') return (inv.status === 'Pending' || inv.status === 'Overdue' || inv.status === 'Draft');
+                return true;
+            });
+
+            // Metrics
+            const metrics = useMemo(() => {
+                const revInvs = invoices.filter(i => i.status !== 'Quote');
+                return {
+                    revenue: revInvs.reduce((a, b) => a + (b.total || 0), 0),
+                    outstanding: revInvs.filter(i => i.status === 'Pending' || i.status === 'Overdue').reduce((a, b) => a + (b.balanceDue ?? b.total), 0),
+                    potential: invoices.filter(i => i.status === 'Quote').reduce((a, b) => a + (b.total || 0), 0),
+                    completed: revInvs.filter(i => i.status === 'Paid').length
+                };
+            }, [invoices]);
+
+            // --- VIEWS ---
+            if (view === 'preview') {
+                const { subtotal, discountAmount, taxAmount, total, balanceDue, depositRequired60 } = calculateTotals(currentInvoice.items, currentInvoice.discountValue, currentInvoice.discountType, currentInvoice.taxRate, currentInvoice.deposit);
+                const isQuote = currentInvoice.status === 'Quote';
+                const isOverdue = currentInvoice.status === 'Overdue' || (currentInvoice.status === 'Pending' && new Date(currentInvoice.dueDate) < new Date());
+                const subject = encodeURIComponent(`${isQuote ? 'Quote' : 'Invoice'} ${currentInvoice.number}`);
+                const body = encodeURIComponent(`Dear ${currentInvoice.clientName || 'Client'},\n\nPlease find attached the ${isQuote ? 'quote' : 'invoice'} (${currentInvoice.number}).\n\nKind regards,\n${settings?.companyName || 'Maintenance Services'}`);
+                const mailLink = `mailto:${currentInvoice.clientEmail || ''}?subject=${subject}&body=${body}`;
+                const reminderLink = `mailto:${currentInvoice.clientEmail || ''}?subject=${encodeURIComponent('Payment Reminder: ' + currentInvoice.number)}&body=${encodeURIComponent('Reminder: Invoice ' + currentInvoice.number + ' is due.')}`;
+
+                const handleCopyEmail = () => {
+                    const ta = document.createElement("textarea");
+                    ta.value = `Subject: ${decodeURIComponent(subject)}\n\n${decodeURIComponent(body)}`;
+                    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                    showToast("Email text copied!", "success");
+                };
+
+                const handleDownloadPDF = () => {
+                    const element = document.getElementById('print-container');
+                    const opt = {
+                        margin: [10, 10],
+                        filename: `${isQuote ? 'Quote' : 'Invoice'}_${currentInvoice.number}.pdf`,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2 },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    };
+                    html2pdf().set(opt).from(element).save();
+                };
+
+                return (
+                    <div className="flex flex-col h-screen bg-slate-800">
+                        <div className="bg-slate-900 text-white p-4 flex justify-between items-center no-print">
+                            <Button variant="ghost" onClick={() => setView('editor')} className="text-slate-300"><Icons.ChevronLeft className="w-4 h-4 mr-2"/> Back</Button>
+                            <div className="flex gap-2">
+                                {!isQuote && (isOverdue || currentInvoice.status === 'Pending') && <a href={reminderLink}><Button variant="warning"><Icons.Bell className="w-4 h-4 mr-2"/> Reminder</Button></a>}
+                                <Button variant="secondary" onClick={handleDownloadPDF}><Icons.Download className="w-4 h-4 mr-2"/> PDF</Button>
+                                <Button variant="secondary" onClick={handleCopyEmail}><Icons.Copy className="w-4 h-4 mr-2"/> Copy Text</Button>
+                                <a href={mailLink}><Button variant="secondary"><Icons.Mail className="w-4 h-4 mr-2"/> Email</Button></a>
+                                <Button variant="primary" onClick={() => window.print()}><Icons.Printer className="w-4 h-4 mr-2"/> Print</Button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-auto p-8 bg-slate-800 print:p-0 print:bg-white flex justify-center">
+                            <div id="print-container" className="bg-white w-full max-w-[210mm] min-h-[297mm] p-[20mm] shadow-2xl print:shadow-none print:w-full">
+                                <div className="flex justify-between mb-12">
+                                    <div><h1 className="text-4xl font-bold text-slate-900">{isQuote ? 'QUOTE' : 'INVOICE'}</h1><p className="text-slate-500 text-lg">#{currentInvoice.number}</p></div>
+                                    <div className="text-right"><h2 className="font-bold text-xl">{settings?.companyName || 'Maintenance Services'}</h2><p className="text-slate-500 text-sm whitespace-pre-line">{settings?.companyAddress}</p><p className="text-slate-500 text-sm">{settings?.companyEmail}</p></div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-12 mb-8">
+                                    <div><h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Bill To</h3><p className="font-bold">{currentInvoice.clientName}</p><p className="text-slate-600 whitespace-pre-line">{currentInvoice.billingAddress}</p></div>
+                                    <div><div className="flex justify-between mb-2"><span className="font-bold text-slate-600">Date:</span><span>{formatDate(currentInvoice.date)}</span></div><div className="flex justify-between"><span className="font-bold text-slate-600">{isQuote ? 'Valid Until:' : 'Due Date:'}</span><span>{formatDate(currentInvoice.dueDate)}</span></div></div>
+                                </div>
+                                <table className="w-full mb-8">
+                                    <thead><tr className="border-b-2 border-slate-800 text-left"><th className="py-2">Description</th><th className="text-center">Qty</th><th className="text-right">Rate</th><th className="text-right">Amount</th></tr></thead>
+                                    <tbody>
+                                        {currentInvoice.workDescription && <tr className="border-b border-slate-100"><td colSpan="4" className="py-4 text-slate-700 whitespace-pre-wrap italic">{currentInvoice.workDescription}</td></tr>}
+                                        {currentInvoice.items.map(item => (<tr key={item.id} className="border-b border-slate-100"><td className="py-4">{item.description}</td><td className="py-4 text-center">{item.quantity}</td><td className="py-4 text-right">{formatCurrency(item.rate)}</td><td className="py-4 text-right font-bold">{formatCurrency(item.quantity * item.rate)}</td></tr>))}
+                                    </tbody>
+                                </table>
+                                <div className="flex justify-end">
+                                    <div className="w-64 space-y-2">
+                                        <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
+                                        {discountAmount > 0 && <div className="flex justify-between text-red-500"><span>Discount</span><span>-{formatCurrency(discountAmount)}</span></div>}
+                                        <div className="flex justify-between"><span>VAT ({currentInvoice.taxRate}%)</span><span>{formatCurrency(taxAmount)}</span></div>
+                                        <div className="flex justify-between font-bold text-lg border-t border-slate-800 pt-2"><span>Total</span><span>{formatCurrency(total)}</span></div>
+                                        <div className="flex justify-between text-indigo-600 font-bold pt-2 border-t border-indigo-100"><span>Req. Deposit (60%)</span><span>{formatCurrency(depositRequired60)}</span></div>
+                                        {!isQuote && currentInvoice.deposit > 0 && <div className="flex justify-between pt-2 border-t border-slate-200"><span>Paid</span><span>-{formatCurrency(currentInvoice.deposit)}</span></div>}
+                                    </div>
+                                </div>
+                                <div className="mt-12 pt-8 border-t border-slate-100"><h4 className="font-bold mb-2">Notes & Terms</h4><p className="text-sm text-slate-600 whitespace-pre-wrap">{currentInvoice.notes}</p></div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex h-screen overflow-hidden">
+                    {/* MODAL & TOAST */}
+                    {modal.isOpen && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in"><div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full mx-4 animate-slide-up"><h3 className="font-bold text-lg mb-2 text-slate-800">{modal.title}</h3><p className="text-slate-600 mb-6">{modal.message}</p><div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setModal({ ...modal, isOpen: false })}>Cancel</Button><Button onClick={() => { setModal({ ...modal, isOpen: false }); modal.onConfirm(); }}>Confirm</Button></div></div></div>)}
+                    {toast.show && (<div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium animate-slide-up z-50 ${toast.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>{toast.message}</div>)}
+                    {loading && (<div className="loading-overlay"><div className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div><div>Processing...</div></div></div>)}
+                    
+                    <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col no-print">
+                        <div className="p-6 font-bold text-white text-xl flex items-center gap-2"><Icons.Wrench/> MaintInvoicer</div>
+                        <nav className="flex-1 px-4 space-y-2">
+                            {['dashboard','list','clients','settings'].map(v => (<button key={v} onClick={() => setView(v)} className={`w-full flex items-center p-3 rounded-lg capitalize ${view === v ? 'bg-blue-600 text-white' : 'hover:bg-slate-800'}`}>{v}</button>))}
+                        </nav>
+                    </aside>
+                    <main className="flex-1 overflow-auto p-8">
+                        {view === 'dashboard' && (
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center"><h1 className="text-2xl font-bold">Dashboard</h1><div className="flex gap-2"><Button onClick={() => createNew('quote')} variant="secondary"><Icons.FileAxis3d className="w-4 h-4 mr-2"/> New Quote</Button><Button onClick={() => createNew('invoice')}><Icons.Plus className="w-4 h-4 mr-2"/> New Invoice</Button></div></div>
+                                <div className="grid grid-cols-4 gap-4">
+                                    <div className="bg-white p-6 rounded-xl border shadow-sm"><span className="text-sm text-slate-500">Revenue</span><div className="text-2xl font-bold">{formatCurrency(metrics.revenue)}</div></div>
+                                    <div className="bg-white p-6 rounded-xl border shadow-sm"><span className="text-sm text-slate-500">Outstanding</span><div className="text-2xl font-bold text-amber-600">{formatCurrency(metrics.outstanding)}</div></div>
+                                    <div className="bg-white p-6 rounded-xl border shadow-sm"><span className="text-sm text-slate-500">Potential (Quotes)</span><div className="text-2xl font-bold text-indigo-600">{formatCurrency(metrics.potential)}</div></div>
+                                </div>
+                                <div className="bg-white p-6 rounded-xl border shadow-sm h-80">
+                                    <h3 className="font-bold text-slate-700 mb-4">Financial Performance (6 Months)</h3>
+                                    <div className="h-64"><RevenueChart invoices={invoices} /></div>
+                                </div>
+                            </div>
+                        )}
+                        {view === 'list' && (
+                            <div className="space-y-6">
+                                <div className="flex justify-between"><h1 className="text-2xl font-bold">Documents</h1><Button onClick={() => createNew('invoice')}><Icons.Plus className="w-4 h-4 mr-2"/> Create New</Button></div>
+                                <div className="flex gap-4"><input placeholder="Search..." className="border p-2 rounded flex-1" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /><div className="flex gap-1 bg-slate-100 p-1 rounded">{['All','Quote','Unpaid','Paid'].map(f => (<button key={f} onClick={() => setFilter(f)} className={`px-3 py-1 rounded text-sm ${filter === f ? 'bg-white shadow' : 'text-slate-500'}`}>{f}</button>))}</div></div>
+                                <div className="bg-white rounded-xl border shadow-sm overflow-hidden"><table className="w-full text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-4">Number</th><th className="p-4">Client</th><th className="p-4 text-right">Amount</th><th className="p-4 text-center">Status</th><th className="p-4"></th></tr></thead><tbody>{filteredInvoices.map(inv => (<tr key={inv.id} className="hover:bg-slate-50 border-b"><td className="p-4 font-medium">{inv.number}</td><td className="p-4">{inv.clientName}<div className="text-xs text-slate-500">{formatDate(inv.date)}</div></td><td className="p-4 text-right font-bold">{formatCurrency(inv.total)}</td><td className="p-4 text-center"><Badge status={inv.status}/></td><td className="p-4 text-right"><Button variant="ghost" onClick={() => { setCurrentInvoice(inv); setView('editor'); }}>Edit</Button></td></tr>))}</tbody></table></div>
+                            </div>
+                        )}
+                        {view === 'clients' && (
+                            <div className="space-y-6"><h1 className="text-2xl font-bold">Clients</h1><div className="bg-slate-100 p-4 rounded-lg space-y-2"><h3 className="font-bold">Add/Edit Client</h3><form onSubmit={(e) => { e.preventDefault(); const formData = new FormData(e.target); saveClient({ name: formData.get('name'), email: formData.get('email'), address: formData.get('address'), phone: formData.get('phone') }); e.target.reset(); }}><div className="grid grid-cols-2 gap-2"><input name="name" placeholder="Name" className="p-2 border rounded" required /><input name="email" placeholder="Email" className="p-2 border rounded" /><input name="phone" placeholder="Phone" className="p-2 border rounded" /><input name="address" placeholder="Address" className="p-2 border rounded" /></div><Button className="mt-2">Save Client</Button></form></div><div className="bg-white rounded-xl border">{clients.map(c => (<div key={c.id} className="p-4 border-b flex justify-between items-center"><div><div className="font-bold">{c.name}</div><div className="text-sm text-slate-500">{c.email}</div></div><Button variant="danger" onClick={() => deleteDocHandler(c.id, 'clients')}><Icons.Trash2 className="w-4 h-4"/></Button></div>))}</div></div>
+                        )}
+                        {view === 'settings' && (
+                            <div className="max-w-2xl"><h1 className="text-2xl font-bold mb-6">Settings</h1>
+                                <div className="bg-white p-6 rounded-xl border shadow-sm space-y-6">
+                                    <div><h3 className="font-bold text-lg mb-2">Company Details</h3><div className="space-y-4"><Input label="Company Name" value={settings?.companyName || ''} onChange={e => setSettings({...settings, companyName: e.target.value})} /><div className="grid grid-cols-2 gap-4"><Input label="Email" value={settings?.companyEmail || ''} onChange={e => setSettings({...settings, companyEmail: e.target.value})} /><Input label="Phone" value={settings?.companyPhone || ''} onChange={e => setSettings({...settings, companyPhone: e.target.value})} /></div><Input label="Address" value={settings?.companyAddress || ''} onChange={e => setSettings({...settings, companyAddress: e.target.value})} /></div></div>
+                                    <div className="border-t pt-4"><h3 className="font-bold text-lg mb-2">Service Rates</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{PREDEFINED_SERVICES_DEFAULTS.filter(s => s.id !== 'custom').map(service => (<div key={service.id} className="flex flex-col gap-1"><label className="text-xs font-semibold text-slate-600">{service.label}</label><div className="relative"><span className="absolute left-3 top-2 text-slate-400">R</span><input type="number" className="w-full pl-8 p-2 border rounded" placeholder={service.rate} value={settings?.serviceRates?.[service.id] ?? service.rate} onChange={e => setSettings({ ...settings, serviceRates: { ...(settings?.serviceRates || {}), [service.id]: e.target.value } })} /></div></div>))}</div></div>
+                                    <div className="border-t pt-4"><label className="text-sm font-bold">Default Notes</label><textarea className="w-full border p-2 rounded h-24" value={settings?.defaultNotes || ''} onChange={e => setSettings({...settings, defaultNotes: e.target.value})} /></div><Button onClick={() => saveSettingsHandler(settings)}>Save Settings</Button>
+                                </div>
+                            </div>
+                        )}
+                        {view === 'editor' && currentInvoice && (
+                            <div className="max-w-4xl mx-auto pb-20">
+                                <div className="flex justify-between items-center mb-6"><Button variant="ghost" onClick={() => setView('list')}><Icons.ChevronLeft className="w-4 h-4 mr-2"/> Back</Button><div className="flex gap-2">{currentInvoice.status === 'Quote' && currentInvoice.id && <Button variant="success" onClick={handleConvertClick}><Icons.ArrowRight className="w-4 h-4 mr-2"/> Convert to Inv</Button>}{currentInvoice.id && <Button variant="secondary" onClick={handleDuplicateClick}><Icons.Copy className="w-4 h-4 mr-2"/> Duplicate</Button>}<Button variant="secondary" onClick={() => setView('preview')}><Icons.Printer className="w-4 h-4 mr-2"/> Preview</Button><Button onClick={saveInvoice}><Icons.Save className="w-4 h-4 mr-2"/> Save</Button></div></div>
+                                <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                                    <div className="p-6 bg-slate-50 border-b grid grid-cols-3 gap-4"><Input label="Number" value={currentInvoice.number} onChange={e => setCurrentInvoice({...currentInvoice, number: e.target.value})} /><Input type="date" label="Date" value={currentInvoice.date} onChange={e => setCurrentInvoice({...currentInvoice, date: e.target.value})} /><div><label className="text-sm font-bold">Status</label><select className="w-full p-2 border rounded" value={currentInvoice.status} onChange={e => setCurrentInvoice({...currentInvoice, status: e.target.value})}>{['Draft','Quote','Pending','Paid','Overdue'].map(s => <option key={s} value={s}>{s}</option>)}</select></div></div>
+                                    <div className="p-6 space-y-4">
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-bold">Client</label>
+                                                <ClientSelect 
+                                                    clients={clients} 
+                                                    value={currentInvoice.clientName} 
+                                                    onSelect={(c) => setCurrentInvoice({...currentInvoice, clientName: c.name, clientEmail: c.email, billingAddress: c.address})} 
+                                                />
+                                                <Input placeholder="Email" value={currentInvoice.clientEmail} onChange={e => setCurrentInvoice({...currentInvoice, clientEmail: e.target.value})} /><textarea placeholder="Billing Address" className="w-full p-2 border rounded h-20" value={currentInvoice.billingAddress} onChange={e => setCurrentInvoice({...currentInvoice, billingAddress: e.target.value})} />
+                                            </div>
+                                            <div className="space-y-2"><label className="text-sm font-bold">Job Details</label><textarea placeholder="Work Description (Scope of Work)" className="w-full p-2 border rounded h-20" value={currentInvoice.workDescription} onChange={e => setCurrentInvoice({...currentInvoice, workDescription: e.target.value})} /><Input type="date" label="Due Date" value={currentInvoice.dueDate} onChange={e => setCurrentInvoice({...currentInvoice, dueDate: e.target.value})} /></div>
+                                        </div>
+                                        <div className="border-t pt-4">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="font-bold text-slate-800">Items & Charges</h3>
+                                                <div className="flex items-center gap-2"><span className="text-sm text-slate-500">Show Costs (Profit)</span><button onClick={() => setShowCosts(!showCosts)} className={`w-10 h-6 rounded-full p-1 transition-colors ${showCosts ? 'bg-blue-600' : 'bg-slate-300'}`}><div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${showCosts ? 'translate-x-4' : 'translate-x-0'}`}></div></button></div>
+                                            </div>
+                                            <div className="space-y-3">{currentInvoice.items.map((item, idx) => (<div key={item.id} className="flex flex-col md:flex-row gap-2 items-start bg-slate-50 p-3 rounded-lg border border-slate-200"><div className="flex-1 w-full"><label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Item / Service</label><select className="w-full p-2 border rounded bg-white text-slate-700 mb-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" onChange={(e) => { const service = availableServices.find(s => s.id === e.target.value); if (service && service.id !== 'custom') { const newItems = [...currentInvoice.items]; newItems[idx].description = service.description; newItems[idx].rate = service.rate; setCurrentInvoice({...currentInvoice, items: newItems}); } }} defaultValue=""><option value="" disabled>Select a preset...</option>{availableServices.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select><input className="w-full p-2 border rounded bg-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Description" value={item.description} onChange={e => { const newItems = [...currentInvoice.items]; newItems[idx].description = e.target.value; setCurrentInvoice({...currentInvoice, items: newItems}); }} /></div><div className="flex gap-2 w-full md:w-auto"><div className="w-20"><label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Qty</label><input type="number" className="w-full p-2 border rounded bg-white text-center" placeholder="1" value={item.quantity} onChange={e => { const newItems = [...currentInvoice.items]; newItems[idx].quantity = Number(e.target.value); setCurrentInvoice({...currentInvoice, items: newItems}); }} /></div><div className="w-28"><label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Rate (R)</label><input type="number" className="w-full p-2 border rounded bg-white text-right" placeholder="0.00" value={item.rate} onChange={e => { const newItems = [...currentInvoice.items]; newItems[idx].rate = Number(e.target.value); setCurrentInvoice({...currentInvoice, items: newItems}); }} /></div>
+                                            {showCosts && (<div className="w-24"><label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block text-orange-600">Cost (R)</label><input type="number" className="w-full p-2 border border-orange-200 rounded bg-orange-50 text-right text-orange-800" placeholder="0.00" value={item.cost || 0} onChange={e => { const newItems = [...currentInvoice.items]; newItems[idx].cost = Number(e.target.value); setCurrentInvoice({...currentInvoice, items: newItems}); }} /></div>)}
+                                            <div className="pt-6"><Button variant="danger" className="h-[42px]" onClick={() => { const newItems = currentInvoice.items.filter(i => i.id !== item.id); setCurrentInvoice({...currentInvoice, items: newItems}); }}><Icons.Trash2 className="w-4 h-4"/></Button></div></div></div>))}</div><Button variant="secondary" className="mt-4" onClick={() => setCurrentInvoice({...currentInvoice, items: [...currentInvoice.items, { id: generateId(), description: '', quantity: 1, rate: 0, cost: 0 }]})}><Icons.Plus className="w-4 h-4 mr-2"/> Add Line Item</Button></div>
+                                        <div className="border-t pt-4 grid grid-cols-2 gap-8"><textarea className="border p-2 rounded h-24" placeholder="Notes..." value={currentInvoice.notes} onChange={e => setCurrentInvoice({...currentInvoice, notes: e.target.value})} /><div className="space-y-2 text-right"><div className="flex justify-between items-center"><span className="text-sm">Discount</span><input type="number" className="border p-1 rounded w-20 text-right" value={currentInvoice.discountValue} onChange={e => setCurrentInvoice({...currentInvoice, discountValue: Number(e.target.value)})} /></div><div className="flex justify-between items-center"><span className="text-sm">Deposit Paid</span><input type="number" className="border p-1 rounded w-20 text-right" value={currentInvoice.deposit} onChange={e => setCurrentInvoice({...currentInvoice, deposit: Number(e.target.value)})} /></div><div className="text-xl font-bold">Total: {formatCurrency(calculateTotals(currentInvoice.items, currentInvoice.discountValue, currentInvoice.discountType, currentInvoice.taxRate, currentInvoice.deposit).total)}</div>
+                                        {showCosts && (<div className="text-sm text-emerald-600 pt-2 border-t mt-2">Est. Profit: {formatCurrency(calculateTotals(currentInvoice.items, currentInvoice.discountValue, currentInvoice.discountType, currentInvoice.taxRate, currentInvoice.deposit).profit)} ({calculateTotals(currentInvoice.items, currentInvoice.discountValue, currentInvoice.discountType, currentInvoice.taxRate, currentInvoice.deposit).margin.toFixed(1)}%)</div>)}
+                                        </div></div>
+                                    </div>
+                                    {currentInvoice.id && (<div className="bg-slate-50 p-4 border-t flex justify-center"><Button variant="danger" onClick={() => deleteDocHandler(currentInvoice.id)}><Icons.Trash2 className="w-4 h-4 mr-2"/> Delete Document</Button></div>)}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
