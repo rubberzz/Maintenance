@@ -41,7 +41,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <!-- ADDED STORAGE -->
+    <!-- Storage removed from active logic to prevent errors, but script kept for compatibility -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 
     <!-- 5. Chart.js (For Analytics) -->
@@ -934,43 +934,58 @@
                         .replace(/{companyName}/g, settings?.companyName || 'Maintenance Services');
                 };
 
-                // NEW: Handle Automated Storage Upload + Email Link
-                const handleEmailClick = async () => {
+                // MODIFIED: SHARE FUNCTION (No Cloud Upload)
+                const handleShareClick = async () => {
                     const element = document.getElementById('print-container');
                     setLoading(true);
-                    
-                    try {
-                        const pdfBlob = await html2pdf().from(element).output('blob');
-                        const pdfFile = new File([pdfBlob], `${isQuote ? 'Quote' : 'Invoice'}_${currentInvoice.number}.pdf`, { type: 'application/pdf' });
 
-                        // 2. Fallback: Upload to Cloud & Generate Link
-                        const fileName = `invoices/${currentInvoice.number}_${Date.now()}.pdf`;
-                        const storageRef = storage.ref().child(fileName);
-                        await storageRef.put(pdfBlob);
-                        const downloadUrl = await storageRef.getDownloadURL();
-                        
-                        // Professional/Secure wording for link
-                        let emailBody = getProcessedBody(rawBody);
-                            
-                        emailBody += `\n\n----------------------------------\nSECURE DOCUMENT ACCESS\n----------------------------------\nYou can securely view or download your official PDF document via Google Cloud using the verified link below:\n\n${downloadUrl}\n\nThis link is generated automatically for your security.`;
-                        
-                        const encodedBody = encodeURIComponent(emailBody);
-                        const mailLink = `mailto:${currentInvoice.clientEmail || ''}?subject=${subject}&body=${encodedBody}`;
-                        
-                        showToast("Email draft opened with secure link!", "success");
-                        setTimeout(() => { window.location.href = mailLink; }, 500);
-                        
-                    } catch (err) {
-                        console.error(err);
-                        if (err.code === 'storage/unauthorized') {
-                            setModal({
-                                isOpen: true,
-                                title: "Storage Permission Error",
-                                message: "To use the 'Email Link' feature, you must enable Firebase Storage in the console and set rules to public.",
-                                onConfirm: () => {}
+                    try {
+                        // 1. Generate PDF Blob
+                        const pdfBlob = await html2pdf().from(element).output('blob');
+                        const filename = `${isQuote ? 'Quote' : 'Invoice'}_${currentInvoice.number}.pdf`;
+                        const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' });
+
+                        // 2. Prepare Data
+                        const email = currentInvoice.clientEmail || '';
+                        const subjectText = rawSubject;
+                        const bodyText = getProcessedBody(rawBody);
+
+                        // 3. COPY EMAIL TO CLIPBOARD (User Request)
+                        if (email) {
+                            try {
+                                await navigator.clipboard.writeText(email);
+                                showToast("Client email copied to clipboard!", "success");
+                            } catch (err) {
+                                console.error("Clipboard failed", err);
+                            }
+                        }
+
+                        // 4. Try Web Share API with File
+                        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+                            await navigator.share({
+                                files: [pdfFile],
+                                title: subjectText,
+                                text: bodyText
                             });
                         } else {
-                            showToast("Error: " + err.message, "error");
+                            // 5. Fallback: Download + Mailto
+                            const link = document.createElement('a');
+                            link.href = URL.createObjectURL(pdfBlob);
+                            link.download = filename;
+                            link.click();
+
+                            // Open mailto link
+                            const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subjectText)}&body=${encodeURIComponent(bodyText)}`;
+                            window.location.href = mailtoLink;
+                            
+                            showToast("PDF Downloaded. Email copied. Please attach PDF manually.", "warning");
+                        }
+
+                    } catch (err) {
+                        console.error(err);
+                        // AbortError is common when user cancels share, don't show error toast for that
+                        if (err.name !== 'AbortError') {
+                            showToast("Error sharing: " + err.message, "error");
                         }
                     } finally {
                         setLoading(false);
@@ -995,8 +1010,8 @@
                             <Button variant="ghost" onClick={() => setView('editor')} className="text-slate-300"><Icons.ChevronLeft className="w-4 h-4 mr-2"/> Back</Button>
                             <div className="flex gap-2">
                                 <Button variant="secondary" onClick={handleDownloadPDF}><Icons.Download className="w-4 h-4 mr-2"/> PDF</Button>
-                                {/* NEW: Automated Link Button */}
-                                <Button variant="secondary" onClick={handleEmailClick} title="Send Email (Attach or Link)"><Icons.Send className="w-4 h-4 mr-2"/> Send Email</Button>
+                                {/* NEW: Share Button */}
+                                <Button variant="secondary" onClick={handleShareClick} title="Share PDF via App"><Icons.Send className="w-4 h-4 mr-2"/> Share / Email</Button>
                                 <Button variant="primary" onClick={() => window.print()}><Icons.Printer className="w-4 h-4 mr-2"/> Print</Button>
                             </div>
                         </div>
