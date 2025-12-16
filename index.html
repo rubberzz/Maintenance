@@ -894,9 +894,21 @@
                     || `${isQuote ? 'Quote' : 'Invoice'} ${currentInvoice.number}`
                 );
 
-                const defaultBody = `Dear {clientName},\n\nPlease find attached the ${isQuote ? 'quote' : 'invoice'} (${currentInvoice.number}).\n\nTotal: {total}\nDue Date: {dueDate}\n\nKind regards,\n{companyName}`;
-                const rawBody = (isQuote ? settings?.quoteEmailBody : settings?.invoiceEmailBody) || defaultBody;
+                const defaultQuoteBody = `Dear {clientName},\n\nHere is the quote {number} for your review.\n\nAmount: {total}\nValid Until: {dueDate}\n\nPlease let us know if you have any questions or would like to proceed.\n\nBest regards,\n{companyName}`;
                 
+                const defaultInvoiceBody = `Dear {clientName},\n\nPlease find attached invoice {number}.\n\nTotal Due: {total}\nDue Date: {dueDate}\n\nBanking details are included on the invoice.\n\nKind regards,\n{companyName}`;
+
+                const rawBody = (isQuote ? (settings?.quoteEmailBody || defaultQuoteBody) : (settings?.invoiceEmailBody || defaultInvoiceBody));
+                
+                const getProcessedBody = (template) => {
+                    return template
+                        .replace(/{clientName}/g, currentInvoice.clientName || 'Client')
+                        .replace(/{number}/g, currentInvoice.number)
+                        .replace(/{total}/g, formatCurrency(total))
+                        .replace(/{dueDate}/g, formatDate(currentInvoice.dueDate))
+                        .replace(/{companyName}/g, settings?.companyName || 'Maintenance Services');
+                };
+
                 // NEW: Handle Automated Storage Upload + Email Link
                 const handleEmailClick = async () => {
                     const element = document.getElementById('print-container');
@@ -912,7 +924,7 @@
                                 await navigator.share({
                                     files: [pdfFile],
                                     title: subject,
-                                    text: rawBody.replace(/{clientName}/g, currentInvoice.clientName || 'Client').replace(/{number}/g, currentInvoice.number),
+                                    text: getProcessedBody(rawBody),
                                 });
                                 showToast("Opened in Mail app successfully!", "success");
                                 setLoading(false);
@@ -933,12 +945,7 @@
                         const downloadUrl = await storageRef.getDownloadURL();
                         
                         // Professional/Secure wording for link
-                        let emailBody = rawBody
-                            .replace(/{clientName}/g, currentInvoice.clientName || 'Client')
-                            .replace(/{number}/g, currentInvoice.number)
-                            .replace(/{total}/g, formatCurrency(total))
-                            .replace(/{dueDate}/g, formatDate(currentInvoice.dueDate))
-                            .replace(/{companyName}/g, settings?.companyName || 'Maintenance Services');
+                        let emailBody = getProcessedBody(rawBody);
                             
                         emailBody += `\n\n----------------------------------\nSECURE DOCUMENT ACCESS\n----------------------------------\nYou can securely view or download your official PDF document via Google Cloud using the verified link below:\n\n${downloadUrl}\n\nThis link is generated automatically for your security.`;
                         
