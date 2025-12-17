@@ -524,28 +524,45 @@
             const handleSave = () => {
                 try {
                     let cleanStr = configStr.trim();
-                    // Remove trailing semicolon if present (common when copying from JS files)
+                    
+                    // 1. Cleanup common JS artifacts (const config =, trailing ;)
+                    // Removes 'const config =' if present
+                    if (cleanStr.includes('=')) {
+                        cleanStr = cleanStr.split('=')[1].trim();
+                    }
+                    // Removes trailing semicolon if present
                     if (cleanStr.endsWith(';')) {
                         cleanStr = cleanStr.slice(0, -1);
                     }
 
                     let parsed;
+                    
+                    // Strategy 1: Strict JSON Parse
                     try {
-                        // First, try strict JSON parsing
                         parsed = JSON.parse(cleanStr);
-                    } catch (jsonError) {
-                        // If that fails, try loose JS parsing (handles missing quotes on keys)
+                    } catch (jsonErr) {
+                        // Strategy 2: Loose JS Evaluation (new Function)
                         try {
                             // Using Function constructor to parse JS object literal safely-ish on client side
+                            // This handles standard JS objects like { key: "value" }
                             parsed = new Function("return " + cleanStr)();
-                        } catch (jsError) {
-                            throw new Error("Invalid format. Please ensure it is valid JSON or a standard JS object.");
+                        } catch (jsErr) {
+                            // Strategy 3: Regex Auto-Fix (Add quotes to keys)
+                            // This handles the specific format { key: "value" } by converting to {"key": "value"}
+                            try {
+                                const fixedStr = cleanStr.replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":')
+                                                         .replace(/'/g, '"'); // Swap single quotes for double
+                                parsed = JSON.parse(fixedStr);
+                            } catch (regexErr) {
+                                // If all fail, throw a clear error
+                                throw new Error("Could not parse config. Please make sure you copied the entire object starting with { and ending with }");
+                            }
                         }
                     }
 
                     // Simple validation
-                    if (!parsed.apiKey || !parsed.projectId) {
-                        throw new Error("Invalid config: Missing apiKey or projectId");
+                    if (!parsed || !parsed.apiKey || !parsed.projectId) {
+                        throw new Error("Invalid config: Missing apiKey or projectId. Please check your input.");
                     }
                     
                     // Save as a standard JSON string for consistency in LocalStorage
@@ -1440,7 +1457,7 @@
                                                 <th className="p-4">Invoice #</th>
                                                 <th className="p-4">Due Date</th>
                                                 <th className="p-4 text-right">Amount Due</th>
-                                                <th className="p-4 text-center">Overdue Days</th>
+                                                <th className="p-4 text-center">Status</th>
                                                 <th className="p-4 text-right">Action</th>
                                             </tr>
                                         </thead>
@@ -1456,7 +1473,11 @@
                                                             <td className="p-4">{inv.number}</td>
                                                             <td className="p-4 text-slate-600">{formatDate(inv.dueDate)}</td>
                                                             <td className="p-4 text-right font-bold text-red-600">{formatCurrency(inv.balanceDue || inv.total)}</td>
-                                                            <td className="p-4 text-center"><span className="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded-full">{daysOverdue} Days</span></td>
+                                                            <td className="p-4 text-center">
+                                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${daysOverdue > 30 ? 'bg-red-200 text-red-900' : 'bg-red-100 text-red-800'}`}>
+                                                                    {daysOverdue} Days Overdue
+                                                                </span>
+                                                            </td>
                                                             <td className="p-4 text-right">
                                                                 <a href={`mailto:${inv.clientEmail}?subject=${encodeURIComponent('Overdue Payment: ' + inv.number)}&body=${encodeURIComponent('Dear ' + inv.clientName + ',\n\nThis is a friendly reminder that invoice ' + inv.number + ' is overdue by ' + daysOverdue + ' days.\n\nPlease arrange payment at your earliest convenience.\n\nRegards,\n' + (settings?.companyName || 'Accounts'))}`}>
                                                                     <Button variant="secondary" className="text-xs h-8"><Icons.Bell className="w-3 h-3 mr-2"/> Remind</Button>
@@ -1639,8 +1660,6 @@
                     </main>
 
                     {/* OVERLAYS AT ROOT LEVEL FOR Z-INDEX CORRECTNESS */}
-                    <BatchReminderModal isOpen={automationOpen} onClose={() => setAutomationOpen(false)} overdueInvoices={invoices.filter(inv => (inv.status === 'Pending' || inv.status === 'Overdue') && new Date(inv.dueDate) < new Date())} settings={settings} showToast={showToast} sendEmail={sendEmail} />
-                    
                     {modal.isOpen && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] animate-fade-in"><div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full mx-4 animate-slide-up"><h3 className="font-bold text-lg mb-2 text-slate-800">{modal.title}</h3><p className="text-slate-600 mb-6">{modal.message}</p><div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setModal({ ...modal, isOpen: false })}>Cancel</Button><Button onClick={() => { setModal({ ...modal, isOpen: false }); modal.onConfirm(); }}>Confirm</Button></div></div></div>)}
                     {toast.show && (<div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium animate-slide-up z-[110] ${toast.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>{toast.message}</div>)}
                     {loading && (<div className="loading-overlay"><div className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div><div>Processing...</div></div></div>)}
