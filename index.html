@@ -41,7 +41,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <!-- Storage removed from active logic to prevent errors, but script kept for compatibility -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 
     <!-- 5. Chart.js (For Analytics) -->
@@ -49,6 +48,9 @@
 
     <!-- 6. html2pdf (For PDF Generation) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- 7. EmailJS (For Email Automation) -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 
     <style>
         /* Hide scrollbar */
@@ -121,40 +123,51 @@
 
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- FIREBASE CONFIGURATION ---
-        let firebaseConfig;
+        // --- FIREBASE CONFIGURATION (SECURE LOCAL STORAGE) ---
+        let firebaseConfig = null;
+        let app, auth, db, storage;
+        
+        // 1. Check for Embedded Config (Immersive Env)
         if (typeof __firebase_config !== 'undefined') {
             try {
                 firebaseConfig = JSON.parse(__firebase_config);
             } catch (e) { console.error(e); }
         } 
         
-        // ⚠️ IMPORTANT: When hosting on GitHub Pages, we use the user provided config
+        // 2. Check LocalStorage (Persisted User Config)
         if (!firebaseConfig) {
-            firebaseConfig = {
-                apiKey: "AIzaSyC_2VD_a8M-K6NiXjuS7JE4p96fboilFRs",
-                authDomain: "maintenance-28808.firebaseapp.com",
-                projectId: "maintenance-28808",
-                storageBucket: "maintenance-28808.firebasestorage.app",
-                messagingSenderId: "864099123620",
-                appId: "1:864099123620:web:eed346d0a3319659124131",
-                measurementId: "G-C9B2J75KV0"
-            };
+            const savedConfig = localStorage.getItem('maintenance_invoicer_firebase_config');
+            if (savedConfig) {
+                try {
+                    firebaseConfig = JSON.parse(savedConfig);
+                } catch(e) { console.error("Invalid saved config", e); }
+            }
         }
 
-        try {
-            firebase.initializeApp(firebaseConfig);
-        } catch(e) {
-            console.error("Firebase Init Error:", e);
+        // 3. Initialize if config exists
+        const isConfigured = !!firebaseConfig;
+        
+        if (isConfigured) {
+            try {
+                if (!firebase.apps.length) {
+                    app = firebase.initializeApp(firebaseConfig);
+                } else {
+                    app = firebase.app();
+                }
+                auth = firebase.auth();
+                db = firebase.firestore();
+                storage = firebase.storage();
+            } catch(e) {
+                console.error("Firebase Init Error:", e);
+            }
         }
 
-        const auth = firebase.auth();
-        const db = firebase.firestore();
-        const storage = firebase.storage(); // Initialize Storage
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'maintenance-invoicer';
 
         // --- GLOBAL DATA HELPER ---
+        // Safeguarded against missing db
         const getCollectionRef = (collectionName) => {
+            if (!db) return null;
             return db.collection('artifacts').doc(appId).collection('public').doc('data').collection(collectionName);
         };
 
@@ -387,8 +400,198 @@
             return <canvas ref={canvasRef} />;
         };
 
+        // --- BATCH REMINDER MODAL (UPDATED FOR EMAILJS) ---
+        const BatchReminderModal = ({ isOpen, onClose, overdueInvoices, settings, showToast, sendEmail }) => {
+            if (!isOpen) return null;
+            
+            const [sentIds, setSentIds] = useState([]);
+            const [sendingIds, setSendingIds] = useState([]);
+
+            const handleAutoRemind = async (inv) => {
+                const daysOverdue = Math.ceil((new Date() - new Date(inv.dueDate)) / (1000 * 60 * 60 * 24));
+                const subject = `Overdue Payment: ${inv.number} (${daysOverdue} Days Late)`;
+                const body = `Dear ${inv.clientName},\n\nThis is a friendly reminder that invoice ${inv.number} is overdue by ${daysOverdue} days.\n\nAmount Due: ${formatCurrency(inv.balanceDue || inv.total)}\nDue Date: ${formatDate(inv.dueDate)}\n\nPlease arrange payment at your earliest convenience.\n\nRegards,\n${settings?.companyName || 'Accounts'}`;
+                
+                // If EmailJS is configured, try silent send
+                if (settings?.emailjsServiceId && settings?.emailjsTemplateId && settings?.emailjsPublicKey) {
+                    setSendingIds(prev => [...prev, inv.id]);
+                    try {
+                        await sendEmail({
+                            to_email: inv.clientEmail,
+                            to_name: inv.clientName,
+                            message: body,
+                            subject: subject,
+                            reply_to: settings.companyEmail
+                        });
+                        if(!sentIds.includes(inv.id)) setSentIds(prev => [...prev, inv.id]);
+                        showToast(`Reminder sent to ${inv.clientName}`, "success");
+                    } catch (err) {
+                        console.error("Auto-send failed:", err);
+                        showToast(`Failed to auto-send to ${inv.clientName}. Opening mail client...`, "error");
+                        // Fallback to mailto
+                        window.location.href = `mailto:${inv.clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                    } finally {
+                        setSendingIds(prev => prev.filter(id => id !== inv.id));
+                    }
+                } else {
+                    // Manual Fallback
+                    window.location.href = `mailto:${inv.clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                    if(!sentIds.includes(inv.id)) setSentIds(prev => [...prev, inv.id]);
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] animate-fade-in backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] flex flex-col animate-slide-up">
+                        <div className="p-6 border-b flex justify-between items-center bg-indigo-50 rounded-t-xl">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-white p-2 rounded-lg shadow-sm text-indigo-600">
+                                    <Icons.MailWarning className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-xl text-indigo-900">Monday Morning Reminders</h3>
+                                    <p className="text-sm text-indigo-600">Review and send overdue notices.</p>
+                                </div>
+                            </div>
+                            <button onClick={onClose} className="text-indigo-400 hover:text-indigo-700">
+                                <Icons.X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto custom-scroll flex-1 space-y-4">
+                             {overdueInvoices.length === 0 ? (
+                                <div className="text-center py-10 text-slate-500">
+                                    <Icons.CheckCircle className="w-12 h-12 mx-auto mb-3 text-emerald-400"/>
+                                    <p>All caught up! No overdue invoices found.</p>
+                                </div>
+                             ) : (
+                                overdueInvoices.map(inv => {
+                                    const isSent = sentIds.includes(inv.id);
+                                    const isSending = sendingIds.includes(inv.id);
+                                    const daysOverdue = Math.ceil((new Date() - new Date(inv.dueDate)) / (1000 * 60 * 60 * 24));
+                                    const hasEmailJS = settings?.emailjsServiceId && settings?.emailjsTemplateId;
+                                    
+                                    return (
+                                        <div key={inv.id} className={`flex items-center justify-between p-4 border rounded-lg transition-all ${isSent ? 'bg-emerald-50 border-emerald-100 opacity-75' : 'hover:bg-slate-50 border-slate-200'}`}>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-slate-800">{inv.clientName}</span>
+                                                    <span className="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-500">{inv.number}</span>
+                                                </div>
+                                                <div className="text-sm text-slate-500 mt-1">
+                                                    <span className="text-red-600 font-medium">{daysOverdue} Days Late</span> • Due: {formatDate(inv.dueDate)}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="text-right">
+                                                    <div className="font-bold text-slate-800">{formatCurrency(inv.balanceDue || inv.total)}</div>
+                                                </div>
+                                                <Button 
+                                                    variant={isSent ? "success" : (hasEmailJS ? "primary" : "secondary")} 
+                                                    onClick={() => handleAutoRemind(inv)}
+                                                    disabled={isSent || isSending}
+                                                    className="w-36 justify-center"
+                                                >
+                                                    {isSending ? (
+                                                        <span className="animate-pulse">Sending...</span>
+                                                    ) : isSent ? (
+                                                        <>Sent <Icons.CheckCircle className="w-3 h-3 ml-1"/></>
+                                                    ) : (
+                                                        <>{hasEmailJS ? 'Auto-Send' : 'Email App'} <Icons.Send className="w-3 h-3 ml-1"/></>
+                                                    )}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                             )}
+                        </div>
+
+                        <div className="p-4 border-t bg-slate-50 rounded-b-xl flex justify-between items-center text-sm text-slate-500">
+                            <div>{sentIds.length} / {overdueInvoices.length} Reminders Processed</div>
+                            <Button onClick={onClose} variant="secondary">Close</Button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- SETUP SCREEN (For Repo Privacy) ---
+        const SetupScreen = ({ onSave }) => {
+            const [configStr, setConfigStr] = useState('');
+            const [error, setError] = useState('');
+
+            const handleSave = () => {
+                try {
+                    const parsed = JSON.parse(configStr);
+                    // Simple validation
+                    if (!parsed.apiKey || !parsed.projectId) {
+                        throw new Error("Invalid config: Missing apiKey or projectId");
+                    }
+                    onSave(configStr);
+                } catch (e) {
+                    setError("Invalid JSON: " + e.message);
+                }
+            };
+
+            const exampleConfig = `{
+  "apiKey": "AIzaSy...",
+  "authDomain": "your-app.firebaseapp.com",
+  "projectId": "your-app",
+  "storageBucket": "your-app.firebasestorage.app",
+  "messagingSenderId": "123456",
+  "appId": "1:123456:web:abc..."
+}`;
+
+            return (
+                <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-8 space-y-6">
+                        <div className="text-center">
+                            <div className="bg-blue-100 p-4 rounded-full w-16 h-16 mx-auto flex items-center justify-center mb-4">
+                                <Icons.Wrench className="w-8 h-8 text-blue-600"/>
+                            </div>
+                            <h1 className="text-2xl font-bold text-slate-900">Connect to Firebase</h1>
+                            <p className="text-slate-500 mt-2">Paste your Firebase Project Configuration below to start.</p>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                            <strong className="block mb-1">Why is this here?</strong>
+                            To keep your GitHub repository secure, we don't store your database keys in the code. They are saved securely in your browser instead.
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700">Firebase Config Object</label>
+                            <textarea 
+                                className="w-full h-48 p-3 font-mono text-xs border rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder={exampleConfig}
+                                value={configStr}
+                                onChange={(e) => setConfigStr(e.target.value)}
+                            ></textarea>
+                            {error && <p className="text-red-600 text-sm font-bold">{error}</p>}
+                            <p className="text-xs text-slate-400">Found in Firebase Console > Project Settings > General > Your Apps > SDK Setup and Configuration (Config).</p>
+                        </div>
+
+                        <Button onClick={handleSave} className="w-full justify-center py-3 text-lg">Save & Connect</Button>
+                    </div>
+                </div>
+            );
+        };
+
+
         // --- MAIN APP ---
         function App() {
+            // STATE FOR CONFIG LOADING
+            const [configLoaded, setConfigLoaded] = useState(isConfigured);
+
+            // If config is not present, render SetupScreen first
+            if (!configLoaded) {
+                return <SetupScreen onSave={(str) => {
+                    localStorage.setItem('maintenance_invoicer_firebase_config', str);
+                    window.location.reload(); // Reload to initialize firebase
+                }} />;
+            }
+
+            // Normal App State
             const [user, setUser] = useState(null);
             const [view, setView] = useState('dashboard');
             const [invoices, setInvoices] = useState([]);
@@ -407,9 +610,24 @@
             // New State for UI Logic
             const [showCosts, setShowCosts] = useState(false);
 
+            // New State for Automation
+            const [automationOpen, setAutomationOpen] = useState(false);
+
             const showToast = (message, type = 'info') => {
                 setToast({ show: true, message, type });
                 setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
+            };
+
+            // --- EMAILJS HELPER ---
+            const sendEmail = async (params) => {
+                if (!settings?.emailjsServiceId || !settings?.emailjsTemplateId || !settings?.emailjsPublicKey) {
+                    throw new Error("EmailJS not configured.");
+                }
+                
+                // Initialize if not already (safeguard)
+                emailjs.init(settings.emailjsPublicKey);
+
+                return emailjs.send(settings.emailjsServiceId, settings.emailjsTemplateId, params);
             };
 
             // --- COMPUTED SERVICES WITH CUSTOM RATES ---
@@ -423,6 +641,8 @@
 
             // --- AUTHENTICATION FIX ---
             useEffect(() => {
+                if (!auth) return; // Guard if init failed
+
                 const initAuth = async () => {
                     // 1. Explicitly set persistence
                     try {
@@ -431,34 +651,27 @@
                         console.error("Persistence error:", e);
                     }
 
-                    // 2. Listen for state changes (This handles restoration AND new logins)
+                    // 2. Listen for state changes
                     auth.onAuthStateChanged(async (u) => {
                         if (u) {
-                            // User is signed in (or restored)
                             console.log("User authenticated:", u.uid);
                             setUser(u);
                             setLoading(false);
                         } else {
-                            // No user found, create/restore anonymous session
                             console.log("No user found, signing in...");
                             try {
                                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                                     await auth.signInWithCustomToken(__initial_auth_token);
                                 } else {
-                                    // Only sign in anonymously if we are effectively 'logged out'
                                     await auth.signInAnonymously();
                                 }
                             } catch (error) {
                                 console.error("Sign in error:", error);
-                                
-                                // Handle specific setup errors gracefully
                                 if (error.code === 'auth/configuration-not-found' || error.code === 'auth/admin-restricted-operation') {
                                     showToast("Auth Disabled: Enable Anonymous Auth in Firebase Console", "warning");
                                 } else {
                                     showToast("Authentication Failed: Public Mode Active", "error");
                                 }
-                                
-                                // CRITICAL FIX: Stop loading even if auth fails so app is usable
                                 setLoading(false);
                             }
                         }
@@ -468,10 +681,34 @@
                 initAuth();
             }, []);
 
+            // --- MONDAY MORNING CHECK LOGIC ---
+            useEffect(() => {
+                if (invoices.length > 0) {
+                    const now = new Date();
+                    const isMonday = now.getDay() === 1; // 0=Sun, 1=Mon
+                    const hour = now.getHours();
+                    const todayStr = now.toDateString();
+                    
+                    // Logic: It's Monday, it's after 8am, and we haven't checked today
+                    if (isMonday && hour >= 8 && localStorage.getItem('monday_automation_date') !== todayStr) {
+                        const overdueCount = invoices.filter(inv => (inv.status === 'Pending' || inv.status === 'Overdue') && new Date(inv.dueDate) < new Date()).length;
+                        
+                        if (overdueCount > 0) {
+                            setAutomationOpen(true);
+                            localStorage.setItem('monday_automation_date', todayStr);
+                        }
+                    }
+                }
+            }, [invoices]);
+
             useEffect(() => {
                 // Modified: Allow data fetching even if user is null (Public Mode)
-                // if (!user) return; // Removed strict check to allow public read
-                
+                const ref = getCollectionRef('invoices');
+                if (!ref) {
+                    setLoading(false);
+                    return;
+                }
+
                 // USE PUBLIC COLLECTION REF
                 const handleReadError = (err) => {
                     console.error("Read Error:", err);
@@ -486,7 +723,7 @@
                     }
                 };
 
-                const unsubInvoices = getCollectionRef('invoices').onSnapshot(snap => {
+                const unsubInvoices = ref.onSnapshot(snap => {
                     setInvoices(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
                     setLoading(false);
                 }, handleReadError);
@@ -500,12 +737,11 @@
                 }, (err) => console.error("Settings Read Error:", err));
 
                 return () => { unsubInvoices(); unsubClients(); unsubSettings(); };
-            }, [user]); // Keep user dependency to re-subscribe if auth status changes
+            }, [user]);
 
             // --- KEYBOARD SHORTCUTS ---
             useEffect(() => {
                 const handleKeyDown = (e) => {
-                    // Ctrl/Cmd + S to Save
                     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                         e.preventDefault();
                         if (view === 'editor' && currentInvoice) {
@@ -854,6 +1090,18 @@
                 setLoading(false);
             };
 
+            const handleDisconnect = () => {
+                setModal({
+                    isOpen: true,
+                    title: 'Disconnect Database?',
+                    message: 'This will remove the API keys from this browser. You will need to re-enter them to access your data. Your data on the cloud will NOT be deleted.',
+                    onConfirm: () => {
+                        localStorage.removeItem('maintenance_invoicer_firebase_config');
+                        window.location.reload();
+                    }
+                });
+            };
+
             const createNew = (type) => {
                 const isQuote = type === 'quote';
                 const prefix = isQuote ? 'QT-' : 'INV-';
@@ -1111,7 +1359,7 @@
                                                 <p className="text-sm text-red-600">You have {metrics.overdueCount} invoices past their due date. Send reminders now to recover revenue.</p>
                                             </div>
                                         </div>
-                                        <Button variant="danger" onClick={() => setView('reminders')}>View Reminders</Button>
+                                        <Button variant="danger" onClick={() => setAutomationOpen(true)}>View Reminders</Button>
                                     </div>
                                 )}
 
@@ -1171,7 +1419,7 @@
                                                 <th className="p-4">Invoice #</th>
                                                 <th className="p-4">Due Date</th>
                                                 <th className="p-4 text-right">Amount Due</th>
-                                                <th className="p-4 text-center">Status</th>
+                                                <th className="p-4 text-center">Overdue Days</th>
                                                 <th className="p-4 text-right">Action</th>
                                             </tr>
                                         </thead>
@@ -1187,11 +1435,7 @@
                                                             <td className="p-4">{inv.number}</td>
                                                             <td className="p-4 text-slate-600">{formatDate(inv.dueDate)}</td>
                                                             <td className="p-4 text-right font-bold text-red-600">{formatCurrency(inv.balanceDue || inv.total)}</td>
-                                                            <td className="p-4 text-center">
-                                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${daysOverdue > 30 ? 'bg-red-200 text-red-900' : 'bg-red-100 text-red-800'}`}>
-                                                                    {daysOverdue} Days Overdue
-                                                                </span>
-                                                            </td>
+                                                            <td className="p-4 text-center"><span className="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded-full">{daysOverdue} Days</span></td>
                                                             <td className="p-4 text-right">
                                                                 <a href={`mailto:${inv.clientEmail}?subject=${encodeURIComponent('Overdue Payment: ' + inv.number)}&body=${encodeURIComponent('Dear ' + inv.clientName + ',\n\nThis is a friendly reminder that invoice ' + inv.number + ' is overdue by ' + daysOverdue + ' days.\n\nPlease arrange payment at your earliest convenience.\n\nRegards,\n' + (settings?.companyName || 'Accounts'))}`}>
                                                                     <Button variant="secondary" className="text-xs h-8"><Icons.Bell className="w-3 h-3 mr-2"/> Remind</Button>
@@ -1265,7 +1509,7 @@
                                         </div>
                                     </div>
 
-                                    {/* Email Templates */}
+                                    {/* Email Templates & Automation */}
                                     <div className="border-t pt-4 space-y-4">
                                         <h3 className="font-bold text-lg">Email Templates</h3>
                                         <p className="text-xs text-slate-500">Available placeholders: {'{clientName}'}, {'{number}'}, {'{total}'}, {'{dueDate}'}, {'{companyName}'}</p>
@@ -1283,6 +1527,25 @@
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Email Automation Config */}
+                                    <div className="border-t pt-4 space-y-4">
+                                        <h3 className="font-bold text-lg text-emerald-800">Email Automation (EmailJS)</h3>
+                                        <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-lg text-sm text-emerald-800">
+                                            <strong>Get these keys for free (200 emails/month):</strong>
+                                            <ol className="list-decimal ml-4 mt-2 space-y-1">
+                                                <li>Go to <a href="https://www.emailjs.com/" target="_blank" className="underline">emailjs.com</a> and sign up.</li>
+                                                <li>Add Service -> Gmail (Connect your account).</li>
+                                                <li>Email Templates -> Create New Template.</li>
+                                                <li>Copy your Service ID, Template ID, and Public Key (Account -> API Keys).</li>
+                                            </ol>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <Input label="Service ID" placeholder="service_xyz..." value={settings?.emailjsServiceId || ''} onChange={e => setSettings({...settings, emailjsServiceId: e.target.value})} />
+                                            <Input label="Template ID" placeholder="template_abc..." value={settings?.emailjsTemplateId || ''} onChange={e => setSettings({...settings, emailjsTemplateId: e.target.value})} />
+                                            <Input label="Public Key" placeholder="user_123..." value={settings?.emailjsPublicKey || ''} onChange={e => setSettings({...settings, emailjsPublicKey: e.target.value})} />
+                                        </div>
+                                    </div>
                                     
                                     <div className="border-t pt-4">
                                         <h3 className="font-bold text-lg mb-2 text-slate-800">Data Management</h3>
@@ -1290,6 +1553,9 @@
                                         <div className="flex gap-2">
                                             <Button onClick={exportData} variant="secondary">
                                                 <Icons.Download className="w-4 h-4 mr-2"/> Export Data Backup
+                                            </Button>
+                                            <Button onClick={handleDisconnect} variant="danger">
+                                                Disconnect Database
                                             </Button>
                                         </div>
                                     </div>
@@ -1352,6 +1618,8 @@
                     </main>
 
                     {/* OVERLAYS AT ROOT LEVEL FOR Z-INDEX CORRECTNESS */}
+                    <BatchReminderModal isOpen={automationOpen} onClose={() => setAutomationOpen(false)} overdueInvoices={invoices.filter(inv => (inv.status === 'Pending' || inv.status === 'Overdue') && new Date(inv.dueDate) < new Date())} settings={settings} showToast={showToast} sendEmail={sendEmail} />
+                    
                     {modal.isOpen && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] animate-fade-in"><div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full mx-4 animate-slide-up"><h3 className="font-bold text-lg mb-2 text-slate-800">{modal.title}</h3><p className="text-slate-600 mb-6">{modal.message}</p><div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setModal({ ...modal, isOpen: false })}>Cancel</Button><Button onClick={() => { setModal({ ...modal, isOpen: false }); modal.onConfirm(); }}>Confirm</Button></div></div></div>)}
                     {toast.show && (<div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium animate-slide-up z-[110] ${toast.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>{toast.message}</div>)}
                     {loading && (<div className="loading-overlay"><div className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div><div>Processing...</div></div></div>)}
