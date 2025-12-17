@@ -523,24 +523,45 @@
 
             const handleSave = () => {
                 try {
-                    const parsed = JSON.parse(configStr);
+                    let cleanStr = configStr.trim();
+                    // Remove trailing semicolon if present (common when copying from JS files)
+                    if (cleanStr.endsWith(';')) {
+                        cleanStr = cleanStr.slice(0, -1);
+                    }
+
+                    let parsed;
+                    try {
+                        // First, try strict JSON parsing
+                        parsed = JSON.parse(cleanStr);
+                    } catch (jsonError) {
+                        // If that fails, try loose JS parsing (handles missing quotes on keys)
+                        try {
+                            // Using Function constructor to parse JS object literal safely-ish on client side
+                            parsed = new Function("return " + cleanStr)();
+                        } catch (jsError) {
+                            throw new Error("Invalid format. Please ensure it is valid JSON or a standard JS object.");
+                        }
+                    }
+
                     // Simple validation
                     if (!parsed.apiKey || !parsed.projectId) {
                         throw new Error("Invalid config: Missing apiKey or projectId");
                     }
-                    onSave(configStr);
+                    
+                    // Save as a standard JSON string for consistency in LocalStorage
+                    onSave(JSON.stringify(parsed));
                 } catch (e) {
-                    setError("Invalid JSON: " + e.message);
+                    setError("Error: " + e.message);
                 }
             };
 
             const exampleConfig = `{
-  "apiKey": "AIzaSy...",
-  "authDomain": "your-app.firebaseapp.com",
-  "projectId": "your-app",
-  "storageBucket": "your-app.firebasestorage.app",
-  "messagingSenderId": "123456",
-  "appId": "1:123456:web:abc..."
+  apiKey: "AIzaSy...",
+  authDomain: "your-app.firebaseapp.com",
+  projectId: "your-app",
+  storageBucket: "your-app.firebasestorage.app",
+  messagingSenderId: "123456",
+  appId: "1:123456:web:abc..."
 }`;
 
             return (
