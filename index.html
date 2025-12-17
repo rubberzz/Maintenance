@@ -118,7 +118,12 @@
             Link: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
             Send: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
             Edit: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-            X: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            X: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+            Box: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" x2="12" y1="22.08" y2="12"/></svg>,
+            PenTool: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>,
+            Calendar: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>,
+            ArrowUp: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>,
+            ArrowDown: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
         };
 
         const { useState, useEffect, useMemo, useRef } = React;
@@ -127,14 +132,12 @@
         let firebaseConfig = null;
         let app, auth, db, storage;
         
-        // 1. Check for Embedded Config (Immersive Env)
         if (typeof __firebase_config !== 'undefined') {
             try {
                 firebaseConfig = JSON.parse(__firebase_config);
             } catch (e) { console.error(e); }
         } 
         
-        // 2. Check LocalStorage (Persisted User Config)
         if (!firebaseConfig) {
             const savedConfig = localStorage.getItem('maintenance_invoicer_firebase_config');
             if (savedConfig) {
@@ -144,7 +147,6 @@
             }
         }
 
-        // 3. Initialize if config exists
         const isConfigured = !!firebaseConfig;
         
         if (isConfigured) {
@@ -164,28 +166,19 @@
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'maintenance-invoicer';
 
-        // --- GLOBAL DATA HELPER ---
-        // Safeguarded against missing db
         const getCollectionRef = (collectionName) => {
             if (!db) return null;
             return db.collection('artifacts').doc(appId).collection('public').doc('data').collection(collectionName);
         };
 
-        // --- HELPER: Timeout Promise for preventing hangs ---
         const timeoutPromise = (ms, promise) => {
             return new Promise((resolve, reject) => {
                 const timeoutId = setTimeout(() => {
                     reject(new Error("Operation timed out. Please check your internet connection or if the Firestore API is enabled."));
                 }, ms);
                 promise.then(
-                    (res) => {
-                        clearTimeout(timeoutId);
-                        resolve(res);
-                    },
-                    (err) => {
-                        clearTimeout(timeoutId);
-                        reject(err);
-                    }
+                    (res) => { clearTimeout(timeoutId); resolve(res); },
+                    (err) => { clearTimeout(timeoutId); reject(err); }
                 );
             });
         };
@@ -204,16 +197,11 @@
         const generateId = () => Math.random().toString(36).substr(2, 9);
 
         const formatCurrency = (amount) => {
-            return new Intl.NumberFormat('en-ZA', {
-                style: 'currency',
-                currency: 'ZAR',
-                minimumFractionDigits: 2
-            }).format(amount);
+            return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', minimumFractionDigits: 2 }).format(amount);
         };
 
         const formatDate = (dateString) => {
             if (!dateString) return '';
-            // Parse YYYY-MM-DD manually to avoid UTC conversion shifts
             const parts = dateString.split('-');
             if (parts.length === 3) {
                 const d = new Date(parts[0], parts[1] - 1, parts[2]);
@@ -222,9 +210,10 @@
             return new Date(dateString).toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' });
         };
 
-        const calculateTotals = (items, discountVal, discountType, taxRate, deposit = 0) => {
+        const calculateTotals = (items, discountVal, discountType, taxRate, deposit = 0, expenses = []) => {
             const subtotal = items.reduce((acc, item) => acc + (item.quantity * item.rate), 0);
             const totalCost = items.reduce((acc, item) => acc + (item.quantity * (item.cost || 0)), 0);
+            const totalExpenses = expenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
             
             let discountAmount = discountType === 'percent' ? subtotal * (discountVal / 100) : discountVal;
             discountAmount = Math.min(discountAmount, subtotal);
@@ -232,10 +221,11 @@
             const taxAmount = subtotalAfterDiscount * (taxRate / 100);
             const total = subtotalAfterDiscount + taxAmount;
             
-            const profit = subtotalAfterDiscount - totalCost;
+            // Profit = (Revenue - Discount - Tax (passed through)) - (Item Costs + Expenses)
+            const profit = subtotalAfterDiscount - totalCost - totalExpenses;
             const margin = subtotalAfterDiscount > 0 ? (profit / subtotalAfterDiscount) * 100 : 0;
 
-            return { subtotal, discountAmount, taxAmount, total, balanceDue: total - deposit, depositRequired60: total * 0.60, totalCost, profit, margin };
+            return { subtotal, discountAmount, taxAmount, total, balanceDue: total - deposit, depositRequired60: total * 0.60, totalCost, totalExpenses, profit, margin };
         };
 
         // --- COMPONENTS ---
@@ -269,7 +259,6 @@
             return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1.5 w-fit ${styles[status] || styles.Draft}`}><IconComp width="12" height="12" />{status}</span>;
         };
 
-        // Custom Searchable Dropdown
         const ClientSelect = ({ clients, value, onSelect }) => {
             const [isOpen, setIsOpen] = useState(false);
             const [search, setSearch] = useState('');
@@ -337,53 +326,117 @@
             );
         };
 
-        // Revenue Chart Component
+        // --- CALENDAR VIEW COMPONENT ---
+        const CalendarView = ({ invoices, onSelectInvoice }) => {
+            const [currentDate, setCurrentDate] = useState(new Date());
+            
+            const getDaysInMonth = (date) => {
+                const year = date.getFullYear();
+                const month = date.getMonth();
+                const days = new Date(year, month + 1, 0).getDate();
+                const firstDay = new Date(year, month, 1).getDay(); // 0 is Sunday
+                return { days, firstDay };
+            };
+
+            const { days, firstDay } = getDaysInMonth(currentDate);
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+            const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+            const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+
+            const renderCalendar = () => {
+                const dayElements = [];
+                // Padding for empty days at start
+                for (let i = 0; i < firstDay; i++) {
+                    dayElements.push(<div key={`empty-${i}`} className="h-24 bg-slate-50 border border-slate-100"></div>);
+                }
+
+                // Days
+                for (let d = 1; d <= days; d++) {
+                    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    const daysInvoices = invoices.filter(inv => inv.dueDate === dateStr);
+                    
+                    dayElements.push(
+                        <div key={d} className="h-24 border border-slate-200 bg-white p-1 overflow-hidden relative group hover:border-blue-400 transition-colors">
+                            <span className={`text-sm font-bold ${new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), d).toDateString() ? 'bg-blue-600 text-white px-1.5 rounded-full' : 'text-slate-700'}`}>{d}</span>
+                            <div className="mt-1 space-y-1 overflow-y-auto max-h-[70px] no-scrollbar">
+                                {daysInvoices.map(inv => {
+                                    let colorClass = 'bg-slate-100 text-slate-600';
+                                    if(inv.status === 'Quote') colorClass = 'bg-indigo-100 text-indigo-700';
+                                    if(inv.status === 'Pending') colorClass = 'bg-amber-100 text-amber-700';
+                                    if(inv.status === 'Paid') colorClass = 'bg-emerald-100 text-emerald-700';
+                                    if(inv.status === 'Overdue') colorClass = 'bg-red-100 text-red-700';
+                                    
+                                    return (
+                                        <div key={inv.id} onClick={() => onSelectInvoice(inv)} className={`text-[10px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 ${colorClass}`}>
+                                            {inv.clientName}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                }
+                return dayElements;
+            };
+
+            return (
+                <div className="bg-white rounded-xl shadow-sm border p-6">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xl font-bold text-slate-800">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h2>
+                        <div className="flex gap-2">
+                            <Button variant="secondary" onClick={prevMonth}><Icons.ChevronLeft className="w-4 h-4"/></Button>
+                            <Button variant="secondary" onClick={() => setCurrentDate(new Date())}>Today</Button>
+                            <Button variant="secondary" onClick={nextMonth}><Icons.ArrowRight className="w-4 h-4"/></Button>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-7 gap-px bg-slate-200 border border-slate-200 rounded-lg overflow-hidden">
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                            <div key={day} className="bg-slate-50 p-2 text-center text-xs font-bold text-slate-500 uppercase">{day}</div>
+                        ))}
+                        {renderCalendar()}
+                    </div>
+                </div>
+            );
+        };
+
         const RevenueChart = ({ invoices }) => {
             const chartRef = useRef(null);
             const canvasRef = useRef(null);
 
             useEffect(() => {
                 if (!canvasRef.current) return;
-
-                // Process Data: Last 6 months
                 const months = [];
                 const revenueData = [];
                 const profitData = [];
-                
                 const today = new Date();
                 for (let i = 5; i >= 0; i--) {
                     const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
                     const monthKey = d.toLocaleString('default', { month: 'short', year: '2-digit' });
                     months.push(monthKey);
-                    
-                    // Filter invoices for this month
                     const monthlyInvoices = invoices.filter(inv => {
                         if (inv.status === 'Quote' || inv.status === 'Draft') return false;
                         const invDate = new Date(inv.date);
                         return invDate.getMonth() === d.getMonth() && invDate.getFullYear() === d.getFullYear();
                     });
-
                     const rev = monthlyInvoices.reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
-                    
-                    // Calculate profit
+                    // Update Profit Calc to include expenses
                     const profit = monthlyInvoices.reduce((sum, inv) => {
                         const cost = (inv.items || []).reduce((c, item) => c + (item.quantity * (item.cost || 0)), 0);
-                        return sum + ((inv.subtotal || 0) - cost);
+                        const exp = (inv.expenses || []).reduce((e, item) => e + (Number(item.amount) || 0), 0);
+                        return sum + ((inv.subtotal || 0) - cost - exp);
                     }, 0);
-
                     revenueData.push(rev);
                     profitData.push(profit);
                 }
-
                 if (chartRef.current) chartRef.current.destroy();
-
                 chartRef.current = new Chart(canvasRef.current, {
                     type: 'bar',
                     data: {
                         labels: months,
                         datasets: [
                             { label: 'Revenue', data: revenueData, backgroundColor: '#3b82f6', borderRadius: 4 },
-                            { label: 'Profit', data: profitData, backgroundColor: '#10b981', borderRadius: 4 }
+                            { label: 'Net Profit', data: profitData, backgroundColor: '#10b981', borderRadius: 4 }
                         ]
                     },
                     options: {
@@ -393,17 +446,90 @@
                         scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
                     }
                 });
-
                 return () => { if(chartRef.current) chartRef.current.destroy(); };
             }, [invoices]);
-
             return <canvas ref={canvasRef} />;
         };
 
-        // --- BATCH REMINDER MODAL (UPDATED FOR EMAILJS) ---
+        // --- SIGNATURE PAD COMPONENT ---
+        const SignatureModal = ({ isOpen, onClose, onSave }) => {
+            const canvasRef = useRef(null);
+            const [isDrawing, setIsDrawing] = useState(false);
+
+            if (!isOpen) return null;
+
+            const startDrawing = (e) => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                ctx.beginPath();
+                ctx.moveTo(
+                    e.nativeEvent.offsetX || e.touches[0].clientX - canvas.getBoundingClientRect().left,
+                    e.nativeEvent.offsetY || e.touches[0].clientY - canvas.getBoundingClientRect().top
+                );
+                setIsDrawing(true);
+            };
+
+            const draw = (e) => {
+                if (!isDrawing) return;
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                ctx.lineTo(
+                    e.nativeEvent.offsetX || e.touches[0].clientX - canvas.getBoundingClientRect().left,
+                    e.nativeEvent.offsetY || e.touches[0].clientY - canvas.getBoundingClientRect().top
+                );
+                ctx.stroke();
+            };
+
+            const endDrawing = () => {
+                setIsDrawing(false);
+            };
+
+            const clear = () => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            };
+
+            const save = () => {
+                const canvas = canvasRef.current;
+                const dataUrl = canvas.toDataURL(); // Base64 png
+                onSave(dataUrl);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[150] animate-fade-in backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 mx-4">
+                        <h3 className="font-bold text-lg mb-4 text-slate-800">Client Signature</h3>
+                        <div className="border-2 border-slate-300 rounded-lg overflow-hidden touch-none bg-slate-50">
+                            <canvas 
+                                ref={canvasRef}
+                                width={500}
+                                height={200}
+                                className="w-full h-48 cursor-crosshair"
+                                onMouseDown={startDrawing}
+                                onMouseMove={draw}
+                                onMouseUp={endDrawing}
+                                onMouseLeave={endDrawing}
+                                onTouchStart={startDrawing}
+                                onTouchMove={draw}
+                                onTouchEnd={endDrawing}
+                            />
+                        </div>
+                        <p className="text-xs text-slate-400 mt-2 mb-4 text-center">Sign above using your finger or mouse.</p>
+                        <div className="flex justify-between">
+                            <Button variant="ghost" onClick={clear}>Clear</Button>
+                            <div className="flex gap-2">
+                                <Button variant="secondary" onClick={onClose}>Cancel</Button>
+                                <Button onClick={save}>Save Signature</Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const BatchReminderModal = ({ isOpen, onClose, overdueInvoices, settings, showToast, sendEmail }) => {
             if (!isOpen) return null;
-            
             const [sentIds, setSentIds] = useState([]);
             const [sendingIds, setSendingIds] = useState([]);
 
@@ -412,7 +538,6 @@
                 const subject = `Overdue Payment: ${inv.number} (${daysOverdue} Days Late)`;
                 const body = `Dear ${inv.clientName},\n\nThis is a friendly reminder that invoice ${inv.number} is overdue by ${daysOverdue} days.\n\nAmount Due: ${formatCurrency(inv.balanceDue || inv.total)}\nDue Date: ${formatDate(inv.dueDate)}\n\nPlease arrange payment at your earliest convenience.\n\nRegards,\n${settings?.companyName || 'Accounts'}`;
                 
-                // If EmailJS is configured, try silent send
                 if (settings?.emailjsServiceId && settings?.emailjsTemplateId && settings?.emailjsPublicKey) {
                     setSendingIds(prev => [...prev, inv.id]);
                     try {
@@ -428,13 +553,11 @@
                     } catch (err) {
                         console.error("Auto-send failed:", err);
                         showToast(`Failed to auto-send to ${inv.clientName}. Opening mail client...`, "error");
-                        // Fallback to mailto
                         window.location.href = `mailto:${inv.clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
                     } finally {
                         setSendingIds(prev => prev.filter(id => id !== inv.id));
                     }
                 } else {
-                    // Manual Fallback
                     window.location.href = `mailto:${inv.clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
                     if(!sentIds.includes(inv.id)) setSentIds(prev => [...prev, inv.id]);
                 }
@@ -516,7 +639,6 @@
             );
         };
 
-        // --- SETUP SCREEN (For Repo Privacy) ---
         const SetupScreen = ({ onSave }) => {
             const [configStr, setConfigStr] = useState('');
             const [error, setError] = useState('');
@@ -524,62 +646,35 @@
             const handleSave = () => {
                 try {
                     let cleanStr = configStr.trim();
-                    
-                    // 1. Cleanup common JS artifacts (const config =, trailing ;)
-                    // Removes 'const config =' if present
-                    if (cleanStr.includes('=')) {
-                        cleanStr = cleanStr.split('=')[1].trim();
-                    }
-                    // Removes trailing semicolon if present
-                    if (cleanStr.endsWith(';')) {
-                        cleanStr = cleanStr.slice(0, -1);
-                    }
+                    if (cleanStr.includes('=')) cleanStr = cleanStr.split('=')[1].trim();
+                    if (cleanStr.endsWith(';')) cleanStr = cleanStr.slice(0, -1);
 
                     let parsed;
-                    
-                    // Strategy 1: Strict JSON Parse
                     try {
                         parsed = JSON.parse(cleanStr);
                     } catch (jsonErr) {
-                        // Strategy 2: Loose JS Evaluation (new Function)
                         try {
-                            // Using Function constructor to parse JS object literal safely-ish on client side
-                            // This handles standard JS objects like { key: "value" }
                             parsed = new Function("return " + cleanStr)();
                         } catch (jsErr) {
-                            // Strategy 3: Regex Auto-Fix (Add quotes to keys)
-                            // This handles the specific format { key: "value" } by converting to {"key": "value"}
                             try {
                                 const fixedStr = cleanStr.replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":')
-                                                         .replace(/'/g, '"'); // Swap single quotes for double
+                                                         .replace(/'/g, '"'); 
                                 parsed = JSON.parse(fixedStr);
                             } catch (regexErr) {
-                                // If all fail, throw a clear error
-                                throw new Error("Could not parse config. Please make sure you copied the entire object starting with { and ending with }");
+                                throw new Error("Could not parse config.");
                             }
                         }
                     }
 
-                    // Simple validation
                     if (!parsed || !parsed.apiKey || !parsed.projectId) {
-                        throw new Error("Invalid config: Missing apiKey or projectId. Please check your input.");
+                        throw new Error("Invalid config.");
                     }
                     
-                    // Save as a standard JSON string for consistency in LocalStorage
                     onSave(JSON.stringify(parsed));
                 } catch (e) {
                     setError("Error: " + e.message);
                 }
             };
-
-            const exampleConfig = `{
-  apiKey: "AIzaSy...",
-  authDomain: "your-app.firebaseapp.com",
-  projectId: "your-app",
-  storageBucket: "your-app.firebasestorage.app",
-  messagingSenderId: "123456",
-  appId: "1:123456:web:abc..."
-}`;
 
             return (
                 <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -601,7 +696,6 @@
                             <label className="text-sm font-bold text-slate-700">Firebase Config Object</label>
                             <textarea 
                                 className="w-full h-48 p-3 font-mono text-xs border rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                                placeholder={exampleConfig}
                                 value={configStr}
                                 onChange={(e) => setConfigStr(e.target.value)}
                             ></textarea>
@@ -615,25 +709,21 @@
             );
         };
 
-
-        // --- MAIN APP ---
         function App() {
-            // STATE FOR CONFIG LOADING
             const [configLoaded, setConfigLoaded] = useState(isConfigured);
 
-            // If config is not present, render SetupScreen first
             if (!configLoaded) {
                 return <SetupScreen onSave={(str) => {
                     localStorage.setItem('maintenance_invoicer_firebase_config', str);
-                    window.location.reload(); // Reload to initialize firebase
+                    window.location.reload(); 
                 }} />;
             }
 
-            // Normal App State
             const [user, setUser] = useState(null);
             const [view, setView] = useState('dashboard');
             const [invoices, setInvoices] = useState([]);
             const [clients, setClients] = useState([]);
+            const [items, setItems] = useState([]); 
             const [settings, setSettings] = useState(null);
             const [loading, setLoading] = useState(true);
             const [currentInvoice, setCurrentInvoice] = useState(null);
@@ -642,61 +732,58 @@
             const [modal, setModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
             const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
             
-            // New State for Client Edit
             const [clientForm, setClientForm] = useState({ name: '', email: '', phone: '', address: '' });
-            
-            // New State for UI Logic
-            const [showCosts, setShowCosts] = useState(false);
+            const [itemForm, setItemForm] = useState({ description: '', rate: '', cost: '', type: 'material' });
 
-            // New State for Automation
+            const [showCosts, setShowCosts] = useState(false);
             const [automationOpen, setAutomationOpen] = useState(false);
+            const [showSignaturePad, setShowSignaturePad] = useState(false); // New: Signature Modal
 
             const showToast = (message, type = 'info') => {
                 setToast({ show: true, message, type });
                 setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
             };
 
-            // --- EMAILJS HELPER ---
             const sendEmail = async (params) => {
                 if (!settings?.emailjsServiceId || !settings?.emailjsTemplateId || !settings?.emailjsPublicKey) {
                     throw new Error("EmailJS not configured.");
                 }
-                
-                // Initialize if not already (safeguard)
                 emailjs.init(settings.emailjsPublicKey);
-
                 return emailjs.send(settings.emailjsServiceId, settings.emailjsTemplateId, params);
             };
 
-            // --- COMPUTED SERVICES WITH CUSTOM RATES ---
             const availableServices = useMemo(() => {
-                const rates = settings?.serviceRates || {};
-                return PREDEFINED_SERVICES_DEFAULTS.map(service => ({
+                const settingsRates = settings?.serviceRates || {};
+                const processedDefaults = PREDEFINED_SERVICES_DEFAULTS.map(service => ({
                     ...service,
-                    rate: rates[service.id] !== undefined ? Number(rates[service.id]) : service.rate
+                    rate: settingsRates[service.id] !== undefined ? Number(settingsRates[service.id]) : service.rate
                 }));
-            }, [settings]);
+                const savedItems = items.map(item => ({
+                    id: item.id,
+                    label: item.description,
+                    description: item.description,
+                    rate: Number(item.rate),
+                    cost: Number(item.cost || 0),
+                    type: item.type
+                }));
+                return [...savedItems, ...processedDefaults];
+            }, [settings, items]);
 
-            // --- AUTHENTICATION FIX ---
             useEffect(() => {
-                if (!auth) return; // Guard if init failed
+                if (!auth) return;
 
                 const initAuth = async () => {
-                    // 1. Explicitly set persistence
                     try {
                         await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
                     } catch (e) {
                         console.error("Persistence error:", e);
                     }
 
-                    // 2. Listen for state changes
                     auth.onAuthStateChanged(async (u) => {
                         if (u) {
-                            console.log("User authenticated:", u.uid);
                             setUser(u);
                             setLoading(false);
                         } else {
-                            console.log("No user found, signing in...");
                             try {
                                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                                     await auth.signInWithCustomToken(__initial_auth_token);
@@ -705,11 +792,6 @@
                                 }
                             } catch (error) {
                                 console.error("Sign in error:", error);
-                                if (error.code === 'auth/configuration-not-found' || error.code === 'auth/admin-restricted-operation') {
-                                    showToast("Auth Disabled: Enable Anonymous Auth in Firebase Console", "warning");
-                                } else {
-                                    showToast("Authentication Failed: Public Mode Active", "error");
-                                }
                                 setLoading(false);
                             }
                         }
@@ -719,15 +801,13 @@
                 initAuth();
             }, []);
 
-            // --- MONDAY MORNING CHECK LOGIC ---
             useEffect(() => {
                 if (invoices.length > 0) {
                     const now = new Date();
-                    const isMonday = now.getDay() === 1; // 0=Sun, 1=Mon
+                    const isMonday = now.getDay() === 1; 
                     const hour = now.getHours();
                     const todayStr = now.toDateString();
                     
-                    // Logic: It's Monday, it's after 8am, and we haven't checked today
                     if (isMonday && hour >= 8 && localStorage.getItem('monday_automation_date') !== todayStr) {
                         const overdueCount = invoices.filter(inv => (inv.status === 'Pending' || inv.status === 'Overdue') && new Date(inv.dueDate) < new Date()).length;
                         
@@ -740,44 +820,32 @@
             }, [invoices]);
 
             useEffect(() => {
-                // Modified: Allow data fetching even if user is null (Public Mode)
                 const ref = getCollectionRef('invoices');
                 if (!ref) {
                     setLoading(false);
                     return;
                 }
 
-                // USE PUBLIC COLLECTION REF
-                const handleReadError = (err) => {
-                    console.error("Read Error:", err);
-                    setLoading(false);
-                    if (err.code === 'permission-denied') {
-                        setModal({
-                            isOpen: true,
-                            title: "Database Locked",
-                            message: "Your database rules are blocking access. Go to Firebase Console > Firestore > Rules and change 'allow read, write: if false;' to 'allow read, write: if true;'",
-                            onConfirm: () => {}
-                        });
-                    }
-                };
-
                 const unsubInvoices = ref.onSnapshot(snap => {
                     setInvoices(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
                     setLoading(false);
-                }, handleReadError);
+                }, (err) => console.error(err));
 
                 const unsubClients = getCollectionRef('clients').onSnapshot(snap => {
                     setClients(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => a.name.localeCompare(b.name)));
-                }, (err) => console.error("Client Read Error:", err));
+                });
+
+                const unsubItems = getCollectionRef('items').onSnapshot(snap => {
+                    setItems(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => a.description.localeCompare(b.description)));
+                });
 
                 const unsubSettings = getCollectionRef('settings').doc('preferences').onSnapshot(doc => {
                     if (doc.exists) setSettings(doc.data());
-                }, (err) => console.error("Settings Read Error:", err));
+                });
 
-                return () => { unsubInvoices(); unsubClients(); unsubSettings(); };
+                return () => { unsubInvoices(); unsubClients(); unsubSettings(); unsubItems(); };
             }, [user]);
 
-            // --- KEYBOARD SHORTCUTS ---
             useEffect(() => {
                 const handleKeyDown = (e) => {
                     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -791,7 +859,6 @@
                 return () => window.removeEventListener('keydown', handleKeyDown);
             }, [view, currentInvoice]); 
 
-            // --- HELPER: CLEAN DATA FOR FIRESTORE ---
             const cleanDataForFirestore = (obj) => {
                 const newObj = {};
                 Object.keys(obj).forEach(key => {
@@ -813,18 +880,8 @@
                 return newObj;
             };
 
-            // --- LOGO UPLOADER HELPER ---
             const processLogo = (file) => {
                 return new Promise((resolve, reject) => {
-                    if (!file.type.startsWith('image/')) {
-                        reject(new Error("File is not an image"));
-                        return;
-                    }
-                    if (file.size > 2 * 1024 * 1024) {
-                        reject(new Error("File is too large (Max 2MB)"));
-                        return;
-                    }
-
                     const reader = new FileReader();
                     reader.readAsDataURL(file);
                     reader.onload = (e) => {
@@ -832,34 +889,13 @@
                         img.src = e.target.result;
                         img.onload = () => {
                             const canvas = document.createElement('canvas');
-                            const MAX_WIDTH = 300;
-                            const MAX_HEIGHT = 150;
-                            let width = img.width;
-                            let height = img.height;
-
-                            if (width > height) {
-                                if (width > MAX_WIDTH) {
-                                    height *= MAX_WIDTH / width;
-                                    width = MAX_WIDTH;
-                                }
-                            } else {
-                                if (height > MAX_HEIGHT) {
-                                    width *= MAX_HEIGHT / height;
-                                    height = MAX_HEIGHT;
-                                }
-                            }
-
-                            canvas.width = width;
-                            canvas.height = height;
                             const ctx = canvas.getContext('2d');
-                            ctx.drawImage(img, 0, 0, width, height);
-                            
-                            // Compress to JPEG to save space
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            ctx.drawImage(img, 0, 0);
                             resolve(canvas.toDataURL('image/jpeg', 0.8));
                         };
-                        img.onerror = () => reject(new Error("Failed to load image"));
                     };
-                    reader.onerror = () => reject(new Error("Failed to read file"));
                 });
             };
 
@@ -871,7 +907,7 @@
                     setLoading(true);
                     const base64 = await processLogo(file);
                     setSettings(prev => ({...prev, companyLogo: base64}));
-                    showToast("Logo processed! Don't forget to Save Settings.", "success");
+                    showToast("Logo processed!", "success");
                 } catch(err) {
                     showToast(err.message, "error");
                 } finally {
@@ -885,20 +921,19 @@
                     delete next.companyLogo;
                     return next;
                 });
-                showToast("Logo removed. Click Save Settings.", "info");
+                showToast("Logo removed.", "info");
             };
 
-            // --- SAVE INVOICE (Manual) ---
             const saveInvoice = async () => {
                 if (!user || !currentInvoice) return;
                 setLoading(true);
                 
                 const items = currentInvoice.items || [];
+                const expenses = currentInvoice.expenses || []; // New
                 const discountVal = Number(currentInvoice.discountValue) || 0;
-                const discountType = currentInvoice.discountType || 'amount';
                 const taxRate = Number(currentInvoice.taxRate) || 0;
                 const deposit = Number(currentInvoice.deposit) || 0;
-                const { subtotal, total, balanceDue } = calculateTotals(items, discountVal, discountType, taxRate, deposit);
+                const { subtotal, total, balanceDue } = calculateTotals(items, discountVal, currentInvoice.discountType, taxRate, deposit, expenses);
                 
                 const docData = { 
                     ...currentInvoice,
@@ -910,8 +945,12 @@
                         cost: Number(i.cost)||0, 
                         type: i.type || 'labor'
                     })),
+                    expenses: expenses.map(e => ({
+                        id: e.id || generateId(),
+                        description: e.description || '',
+                        amount: Number(e.amount)||0
+                    })),
                     discountValue: discountVal,
-                    discountType: discountType,
                     taxRate: taxRate,
                     deposit: deposit,
                     subtotal, total, balanceDue, 
@@ -919,43 +958,27 @@
                 };
                 
                 delete docData.id; 
-                const cleanData = cleanDataForFirestore(docData);
 
                 try {
-                    // USE PUBLIC COLLECTION REF with TIMEOUT
                     const ref = getCollectionRef('invoices');
                     if (currentInvoice.id) {
-                        await timeoutPromise(10000, ref.doc(currentInvoice.id).update(cleanData));
+                        await timeoutPromise(10000, ref.doc(currentInvoice.id).update(cleanDataForFirestore(docData)));
                     } else {
-                        await timeoutPromise(10000, ref.add({ ...cleanData, createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
+                        await timeoutPromise(10000, ref.add({ ...cleanDataForFirestore(docData), createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
                     }
-                    
-                    // SUCCESS STATE:
-                    showToast("Document saved successfully", "success");
-                    setView('list'); // Force navigation back to list
-                    setCurrentInvoice(null); // Clear current invoice to prevent stale data
-                    
+                    showToast("Document saved", "success");
+                    setView('list'); 
+                    setCurrentInvoice(null);
                 } catch(e) { 
                     console.error("SAVE ERROR:", e); 
-                    // Handle specific API error
-                    if (e.message.includes("Cloud Firestore API") || e.code === "permission-denied") {
-                        setModal({
-                            isOpen: true,
-                            title: "Setup Required",
-                            message: "The Cloud Firestore API is not enabled for your project. Please check your browser console for a link to enable it, or visit the Google Cloud Console.",
-                            onConfirm: () => {}
-                        });
-                    } else {
-                        showToast("Error saving: " + e.message, "error"); 
-                    }
+                    showToast("Error saving: " + e.message, "error"); 
                 } finally {
                     setLoading(false);
                 }
             };
 
-            // --- ACTIONS ---
             const handleDuplicateClick = (inv = currentInvoice) => {
-                setModal({ isOpen: true, title: 'Duplicate Document', message: 'Create a copy of this document?', onConfirm: () => duplicateDocument(inv) });
+                setModal({ isOpen: true, title: 'Duplicate Document', message: 'Create a copy?', onConfirm: () => duplicateDocument(inv) });
             };
 
             const duplicateDocument = async (sourceInvoice) => {
@@ -963,40 +986,27 @@
                 setLoading(true);
                 try {
                     const newItems = (sourceInvoice.items || []).map(item => ({...item, id: generateId()}));
+                    const newExpenses = (sourceInvoice.expenses || []).map(e => ({...e, id: generateId()}));
                     const baseData = {
+                        ...sourceInvoice,
                         number: `${sourceInvoice.number}-COPY`,
                         status: 'Draft',
                         date: new Date().toISOString().split('T')[0],
-                        dueDate: sourceInvoice.dueDate || "",
-                        clientName: sourceInvoice.clientName || "",
-                        clientEmail: sourceInvoice.clientEmail || "",
-                        billingAddress: sourceInvoice.billingAddress || "",
-                        workDescription: sourceInvoice.workDescription || "",
-                        notes: sourceInvoice.notes || "",
-                        bankingDetails: sourceInvoice.bankingDetails || "",
-                        discountValue: Number(sourceInvoice.discountValue) || 0,
-                        discountType: sourceInvoice.discountType || 'amount',
-                        taxRate: Number(sourceInvoice.taxRate) || 15,
-                        deposit: 0,
-                        items: newItems
+                        items: newItems,
+                        expenses: newExpenses
                     };
-                    const { subtotal, total, balanceDue } = calculateTotals(newItems, baseData.discountValue, baseData.discountType, baseData.taxRate, 0);
-                    baseData.subtotal = subtotal; baseData.total = total; baseData.balanceDue = balanceDue;
+                    delete baseData.id;
+                    delete baseData.createdAt;
+                    delete baseData.updatedAt;
 
-                    const dbPayload = cleanDataForFirestore({ ...baseData, createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
-                    // USE PUBLIC COLLECTION REF
                     const ref = getCollectionRef('invoices');
-                    const docRef = await timeoutPromise(10000, ref.add(dbPayload));
-                    setCurrentInvoice({ ...baseData, id: docRef.id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+                    const docRef = await timeoutPromise(10000, ref.add(cleanDataForFirestore({ ...baseData, createdAt: firebase.firestore.FieldValue.serverTimestamp() })));
+                    setCurrentInvoice({ ...baseData, id: docRef.id });
                     setView('editor'); 
-                    showToast("Duplicated Successfully!", "success");
+                    showToast("Duplicated!", "success");
                 } catch(e) { 
                     console.error(e); 
-                    if (e.message.includes("Cloud Firestore API") || e.code === "permission-denied") {
-                        setModal({ isOpen: true, title: "Setup Required", message: "Cloud Firestore API not enabled. Check console for link.", onConfirm: () => {} });
-                    } else {
-                        showToast("Failed to duplicate: " + e.message, "error"); 
-                    }
+                    showToast("Failed: " + e.message, "error"); 
                 } finally { setLoading(false); }
             };
 
@@ -1012,44 +1022,30 @@
                 const quoteIdToDelete = currentInvoice.id;
                 setLoading(true);
                 try {
-                    // Use invoice default notes when converting
-                    const defaultInvoiceNotes = settings?.invoiceNotes || 'Thank you for your business! Payment is due within 14 days.';
-                    
-                    const newItems = (currentInvoice.items || []).map(item => ({...item, id: generateId()}));
                     const baseData = {
+                        ...currentInvoice,
                         number: newNumber,
                         status: 'Draft',
                         date: new Date().toISOString().split('T')[0],
                         dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], 
-                        clientName: currentInvoice.clientName || "",
-                        clientEmail: currentInvoice.clientEmail || "",
-                        billingAddress: currentInvoice.billingAddress || "",
-                        workDescription: currentInvoice.workDescription || "",
-                        notes: defaultInvoiceNotes, // Apply Invoice Specific Notes
-                        bankingDetails: currentInvoice.bankingDetails || (settings?.bankingDetails || ""),
-                        discountValue: Number(currentInvoice.discountValue) || 0,
-                        discountType: currentInvoice.discountType || 'amount',
-                        taxRate: Number(currentInvoice.taxRate) || 15,
-                        deposit: 0,
-                        items: newItems
+                        notes: settings?.invoiceNotes || 'Thank you for your business!',
+                        items: (currentInvoice.items || []).map(item => ({...item, id: generateId()})),
+                        expenses: (currentInvoice.expenses || []).map(e => ({...e, id: generateId()}))
                     };
-                    const { subtotal, total, balanceDue } = calculateTotals(newItems, baseData.discountValue, baseData.discountType, baseData.taxRate, 0);
-                    baseData.subtotal = subtotal; baseData.total = total; baseData.balanceDue = balanceDue;
+                    delete baseData.id;
+                    delete baseData.createdAt;
 
-                    const dbPayload = cleanDataForFirestore({ ...baseData, createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
-                    // USE PUBLIC COLLECTION REF
                     const ref = getCollectionRef('invoices');
-                    const docRef = await timeoutPromise(10000, ref.add(dbPayload));
+                    const docRef = await timeoutPromise(10000, ref.add(cleanDataForFirestore({ ...baseData, createdAt: firebase.firestore.FieldValue.serverTimestamp() })));
                     if (quoteIdToDelete) { await ref.doc(quoteIdToDelete).delete(); }
-                    setCurrentInvoice({ ...baseData, id: docRef.id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-                    showToast("Converted & Quote Deleted!", "success");
-                } catch(e) { console.error(e); showToast("Failed to convert: " + e.message, "error"); } finally { setLoading(false); }
+                    setCurrentInvoice({ ...baseData, id: docRef.id });
+                    showToast("Converted!", "success");
+                } catch(e) { console.error(e); showToast("Failed: " + e.message, "error"); } finally { setLoading(false); }
             };
 
             const updateStatus = async (id, newStatus) => {
                 if (!user) return;
                 try {
-                     // USE PUBLIC COLLECTION REF
                      await getCollectionRef('invoices').doc(id).update({
                         status: newStatus,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -1067,16 +1063,13 @@
                     onConfirm: async () => {
                         setLoading(true);
                         try {
-                            // USE PUBLIC COLLECTION REF
                             await timeoutPromise(10000, getCollectionRef(collectionName).doc(id).delete());
-                            
-                            // If we are deleting an invoice, always go back to list to prevent showing deleted data
                             if(collectionName === 'invoices') {
                                 setView('list');
                                 setCurrentInvoice(null);
                             }
-                            showToast("Deleted successfully", "success");
-                        } catch(e) { console.error(e); showToast("Error deleting: " + e.message, "error"); }
+                            showToast("Deleted", "success");
+                        } catch(e) { console.error(e); showToast("Error: " + e.message, "error"); }
                         finally { setLoading(false); }
                     }
                 });
@@ -1084,7 +1077,6 @@
 
             const saveClient = async () => {
                 try {
-                    // USE PUBLIC COLLECTION REF
                     const ref = getCollectionRef('clients');
                     if (clientForm.id) {
                         await ref.doc(clientForm.id).update(clientForm);
@@ -1093,35 +1085,51 @@
                         await ref.add({ ...clientForm, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
                         showToast("Client added", "success");
                     }
-                    // Reset Form
                     setClientForm({ name: '', email: '', phone: '', address: '' });
                 } catch(e) { console.error(e); showToast("Error saving client", "error"); }
             };
 
             const editClient = (client) => {
                 setClientForm(client);
-                window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to top to see form
+                window.scrollTo({ top: 0, behavior: 'smooth' }); 
+            };
+
+            const saveItem = async () => {
+                try {
+                    const ref = getCollectionRef('items');
+                    if (itemForm.id) {
+                        await ref.doc(itemForm.id).update(itemForm);
+                        showToast("Item updated", "success");
+                    } else {
+                        await ref.add({ ...itemForm, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                        showToast("Item added", "success");
+                    }
+                    setItemForm({ description: '', rate: '', cost: '', type: 'material' }); 
+                } catch(e) { console.error(e); showToast("Error saving item", "error"); }
+            };
+
+            const editItem = (item) => {
+                setItemForm(item);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
             const saveSettingsHandler = async (data) => {
                 try {
-                    // USE PUBLIC COLLECTION REF
                     await getCollectionRef('settings').doc('preferences').set(data);
                     showToast("Settings Saved", "success");
                 } catch(e) { console.error(e); showToast("Error saving settings", "error"); }
             };
 
-            // NEW: Export Data Function
             const exportData = async () => {
                 if(!user) return;
                 setLoading(true);
                 try {
-                    const data = { invoices, clients, settings };
+                    const data = { invoices, clients, settings, items }; 
                     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `maint_invoicer_backup_${new Date().toISOString().split('T')[0]}.json`;
+                    a.download = `backup_${new Date().toISOString().split('T')[0]}.json`;
                     a.click();
                     showToast("Backup downloaded", "success");
                 } catch(e) { console.error(e); showToast("Backup failed", "error"); }
@@ -1132,7 +1140,7 @@
                 setModal({
                     isOpen: true,
                     title: 'Disconnect Database?',
-                    message: 'This will remove the API keys from this browser. You will need to re-enter them to access your data. Your data on the cloud will NOT be deleted.',
+                    message: 'Remove keys from browser?',
                     onConfirm: () => {
                         localStorage.removeItem('maintenance_invoicer_firebase_config');
                         window.location.reload();
@@ -1140,36 +1148,39 @@
                 });
             };
 
-            const createNew = (type) => {
+            const createNew = (type, client = null) => {
                 const isQuote = type === 'quote';
-                const prefix = isQuote ? 'QT-' : 'INV-';
-                const num = String(invoices.length + 1).padStart(4, '0');
-                const calloutService = availableServices.find(s => s.id === 'callout');
-                const defaultRate = isQuote ? 0 : (calloutService ? calloutService.rate : 550);
-
-                // Use specific notes based on type
-                const defaultNotes = isQuote 
-                    ? (settings?.quoteNotes || 'This quote is valid for 30 days. We look forward to working with you!')
-                    : (settings?.invoiceNotes || 'Thank you for your business! Payment is due within 14 days.');
-                
-                const defaultBanking = settings?.bankingDetails || 'Bank Name: \nAccount Holder: \nAccount Number: \nBranch Code: \nReference: ';
-
+                const defaultRate = isQuote ? 0 : 550;
                 const newItem = {
-                    number: `${prefix}${num}`,
+                    number: `${isQuote?'QT-':'INV-'}${String(invoices.length + 1).padStart(4, '0')}`,
                     status: isQuote ? 'Quote' : 'Draft',
                     date: new Date().toISOString().split('T')[0],
-                    dueDate: new Date(Date.now() + (isQuote ? 30 : 14) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                    clientName: '', clientEmail: '', billingAddress: '', workDescription: '',
+                    dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                    clientName: client ? client.name : '', 
+                    clientEmail: client ? client.email : '', 
+                    billingAddress: client ? client.address : '', 
+                    workDescription: '',
                     items: [{ id: generateId(), description: isQuote ? 'Labor Estimate' : 'Call Out Fee', type: 'labor', quantity: 1, rate: defaultRate, cost: 0 }],
-                    notes: defaultNotes,
-                    bankingDetails: defaultBanking,
+                    expenses: [],
+                    notes: isQuote ? (settings?.quoteNotes || '') : (settings?.invoiceNotes || ''),
+                    bankingDetails: settings?.bankingDetails || '',
                     subtotal: 0, discountValue: 0, discountType: 'amount', taxRate: 15, deposit: 0, total: 0
                 };
                 setCurrentInvoice(newItem);
                 setView('editor');
             };
 
-            // Filtering
+            // ITEM REORDERING LOGIC
+            const moveItem = (index, direction) => {
+                const newItems = [...currentInvoice.items];
+                const targetIndex = index + direction;
+                if (targetIndex < 0 || targetIndex >= newItems.length) return;
+                const temp = newItems[index];
+                newItems[index] = newItems[targetIndex];
+                newItems[targetIndex] = temp;
+                setCurrentInvoice({ ...currentInvoice, items: newItems });
+            };
+
             const filteredInvoices = invoices.filter(inv => {
                 const match = inv.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) || inv.number?.toLowerCase().includes(searchTerm.toLowerCase());
                 if (!match) return false;
@@ -1179,12 +1190,9 @@
                 return true;
             });
 
-            // Metrics
             const metrics = useMemo(() => {
                 const revInvs = invoices.filter(i => i.status !== 'Quote');
-                // Calculate overdue count for auto-alert
                 const overdueInvs = invoices.filter(inv => (inv.status === 'Pending' || inv.status === 'Overdue') && new Date(inv.dueDate) < new Date());
-
                 return {
                     revenue: revInvs.reduce((a, b) => a + (b.total || 0), 0),
                     outstanding: revInvs.filter(i => i.status === 'Pending' || i.status === 'Overdue').reduce((a, b) => a + (b.balanceDue ?? b.total), 0),
@@ -1194,89 +1202,36 @@
                 };
             }, [invoices]);
 
-            // --- VIEWS ---
+            // --- VIEW RENDERING ---
             if (view === 'preview') {
-                const { subtotal, discountAmount, taxAmount, total, balanceDue, depositRequired60 } = calculateTotals(currentInvoice.items, currentInvoice.discountValue, currentInvoice.discountType, currentInvoice.taxRate, currentInvoice.deposit);
+                const { subtotal, discountAmount, taxAmount, total, balanceDue, depositRequired60 } = calculateTotals(currentInvoice.items, currentInvoice.discountValue, currentInvoice.discountType, currentInvoice.taxRate, currentInvoice.deposit, currentInvoice.expenses);
                 const isQuote = currentInvoice.status === 'Quote';
-                const isOverdue = currentInvoice.status === 'Overdue' || (currentInvoice.status === 'Pending' && new Date(currentInvoice.dueDate) < new Date());
                 
-                // --- FIX: Raw Subject vs Encoded Subject ---
-                const rawSubject = (isQuote ? settings?.quoteEmailSubject : settings?.invoiceEmailSubject)
-                    ?.replace('{number}', currentInvoice.number)
-                    ?.replace('{companyName}', settings?.companyName || 'Maintenance Services') 
-                    || `${isQuote ? 'Quote' : 'Invoice'} ${currentInvoice.number}`;
-                
-                const subject = encodeURIComponent(rawSubject);
-
-                // --- FIX: Improved Default Bodies ---
-                const defaultQuoteBody = `Dear {clientName},\n\nThank you for the opportunity to quote on your project.\n\nPlease find the attached quote {number} for your review.\n\nThe total amount is {total}, valid until {dueDate}.\n\nIf you have any questions or would like to proceed, please don't hesitate to contact us.\n\nBest regards,\n{companyName}`;
-                
-                const defaultInvoiceBody = `Dear {clientName},\n\nI hope you are well.\n\nPlease find attached invoice {number} for the recent work completed.\n\nThe total due is {total}, with payment due by {dueDate}.\n\nOur banking details are included on the invoice document for your convenience.\n\nThank you for your business!\n\nKind regards,\n{companyName}`;
-
-                const rawBody = (isQuote ? (settings?.quoteEmailBody || defaultQuoteBody) : (settings?.invoiceEmailBody || defaultInvoiceBody));
-                
-                const getProcessedBody = (template) => {
-                    return template
-                        .replace(/{clientName}/g, currentInvoice.clientName || 'Client')
-                        .replace(/{number}/g, currentInvoice.number)
-                        .replace(/{total}/g, formatCurrency(total))
-                        .replace(/{dueDate}/g, formatDate(currentInvoice.dueDate))
-                        .replace(/{companyName}/g, settings?.companyName || 'Maintenance Services');
-                };
-
-                // MODIFIED: SHARE FUNCTION (No Cloud Upload)
                 const handleShareClick = async () => {
                     const element = document.getElementById('print-container');
                     setLoading(true);
-
+                    
                     try {
-                        // 1. Generate PDF Blob
                         const pdfBlob = await html2pdf().from(element).output('blob');
-                        const filename = `${isQuote ? 'Quote' : 'Invoice'}_${currentInvoice.number}.pdf`;
-                        const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' });
+                        const pdfFile = new File([pdfBlob], `${currentInvoice.number}.pdf`, { type: 'application/pdf' });
 
-                        // 2. Prepare Data
-                        const email = currentInvoice.clientEmail || '';
-                        const subjectText = rawSubject;
-                        const bodyText = getProcessedBody(rawBody);
-
-                        // 3. COPY EMAIL TO CLIPBOARD (User Request)
-                        if (email) {
-                            try {
-                                await navigator.clipboard.writeText(email);
-                                showToast("Client email copied to clipboard!", "success");
-                            } catch (err) {
-                                console.error("Clipboard failed", err);
-                            }
-                        }
-
-                        // 4. Try Web Share API with File
                         if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
                             await navigator.share({
                                 files: [pdfFile],
-                                title: subjectText,
-                                text: bodyText
+                                title: currentInvoice.number,
+                                text: `Attached is your document.`
                             });
                         } else {
-                            // 5. Fallback: Download + Mailto
                             const link = document.createElement('a');
                             link.href = URL.createObjectURL(pdfBlob);
-                            link.download = filename;
+                            link.download = `${currentInvoice.number}.pdf`;
                             link.click();
-
-                            // Open mailto link
-                            const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subjectText)}&body=${encodeURIComponent(bodyText)}`;
-                            window.location.href = mailtoLink;
-                            
-                            showToast("PDF Downloaded. Email copied. Please attach PDF manually.", "warning");
+                            window.location.href = `mailto:${currentInvoice.clientEmail}?subject=${currentInvoice.number}&body=Attached.`;
+                            showToast("PDF Downloaded", "warning");
                         }
-
                     } catch (err) {
                         console.error(err);
-                        // AbortError is common when user cancels share, don't show error toast for that
-                        if (err.name !== 'AbortError') {
-                            showToast("Error sharing: " + err.message, "error");
-                        }
+                        if (err.name !== 'AbortError') showToast("Error sharing", "error");
                     } finally {
                         setLoading(false);
                     }
@@ -1284,14 +1239,7 @@
 
                 const handleDownloadPDF = () => {
                     const element = document.getElementById('print-container');
-                    const opt = {
-                        margin: [10, 10],
-                        filename: `${isQuote ? 'Quote' : 'Invoice'}_${currentInvoice.number}.pdf`,
-                        image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2 },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                    };
-                    html2pdf().set(opt).from(element).save();
+                    html2pdf().from(element).save();
                 };
 
                 return (
@@ -1300,8 +1248,7 @@
                             <Button variant="ghost" onClick={() => setView('editor')} className="text-slate-300"><Icons.ChevronLeft className="w-4 h-4 mr-2"/> Back</Button>
                             <div className="flex gap-2">
                                 <Button variant="secondary" onClick={handleDownloadPDF}><Icons.Download className="w-4 h-4 mr-2"/> PDF</Button>
-                                {/* NEW: Share Button */}
-                                <Button variant="secondary" onClick={handleShareClick} title="Share PDF via App"><Icons.Send className="w-4 h-4 mr-2"/> Share / Email</Button>
+                                <Button variant="secondary" onClick={handleShareClick}><Icons.Send className="w-4 h-4 mr-2"/> Share</Button>
                                 <Button variant="primary" onClick={() => window.print()}><Icons.Printer className="w-4 h-4 mr-2"/> Print</Button>
                             </div>
                         </div>
@@ -1309,15 +1256,12 @@
                             <div id="print-container" className="bg-white w-full max-w-[210mm] min-h-[297mm] p-[20mm] shadow-2xl print:shadow-none print:w-full">
                                 <div className="flex justify-between items-start mb-12">
                                     <div className="flex flex-col">
-                                        {/* LOGO DISPLAY */}
-                                        {settings?.companyLogo ? (
-                                            <img src={settings.companyLogo} alt="Logo" className="h-20 w-auto object-contain mb-4 self-start" />
-                                        ) : null}
+                                        {settings?.companyLogo ? <img src={settings.companyLogo} alt="Logo" className="h-20 w-auto object-contain mb-4 self-start" /> : null}
                                         <h1 className="text-4xl font-bold text-slate-900 leading-none">{isQuote ? 'QUOTE' : 'INVOICE'}</h1>
                                         <p className="text-slate-500 text-lg">#{currentInvoice.number}</p>
                                     </div>
                                     <div className="text-right">
-                                        <h2 className="font-bold text-xl">{settings?.companyName || 'Maintenance Services'}</h2>
+                                        <h2 className="font-bold text-xl">{settings?.companyName}</h2>
                                         <p className="text-slate-500 text-sm whitespace-pre-line">{settings?.companyAddress}</p>
                                         <p className="text-slate-500 text-sm">{settings?.companyEmail}</p>
                                     </div>
@@ -1344,19 +1288,18 @@
                                     </div>
                                 </div>
                                 <div className="mt-12 pt-8 border-t border-slate-100 grid grid-cols-2 gap-8">
-                                    <div>
-                                        <h4 className="font-bold mb-2">Notes & Terms</h4>
-                                        <p className="text-sm text-slate-600 whitespace-pre-wrap">{currentInvoice.notes}</p>
-                                    </div>
-                                    <div>
-                                        {currentInvoice.bankingDetails && (
-                                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                                                <h4 className="font-bold mb-2 text-slate-800 flex items-center gap-2"><Icons.Bank className="w-4 h-4"/> Banking Details</h4>
-                                                <p className="text-sm text-slate-600 whitespace-pre-wrap font-mono">{currentInvoice.bankingDetails}</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                    <div><h4 className="font-bold mb-2">Notes & Terms</h4><p className="text-sm text-slate-600 whitespace-pre-wrap">{currentInvoice.notes}</p></div>
+                                    <div>{currentInvoice.bankingDetails && <div className="bg-slate-50 p-4 rounded-lg border border-slate-200"><h4 className="font-bold mb-2 text-slate-800 flex items-center gap-2"><Icons.Bank className="w-4 h-4"/> Banking Details</h4><p className="text-sm text-slate-600 whitespace-pre-wrap font-mono">{currentInvoice.bankingDetails}</p></div>}</div>
                                 </div>
+                                
+                                {/* SIGNATURE SECTION IN PREVIEW */}
+                                {currentInvoice.clientSignature && (
+                                    <div className="mt-12 pt-8 border-t border-slate-100">
+                                        <h4 className="font-bold mb-2 text-slate-400 text-xs uppercase">Client Signature</h4>
+                                        <img src={currentInvoice.clientSignature} alt="Signature" className="h-16 w-auto object-contain" />
+                                        <p className="text-xs text-slate-400 mt-1">Signed on {new Date().toLocaleDateString()}</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1368,244 +1311,62 @@
                     <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col no-print">
                         <div className="p-6 font-bold text-white text-xl flex items-center gap-2"><Icons.Wrench/> MaintInvoicer</div>
                         <nav className="flex-1 px-4 space-y-2">
-                            {['dashboard','list','reminders','clients','settings'].map(v => (<button key={v} onClick={() => setView(v)} className={`w-full flex items-center p-3 rounded-lg capitalize ${view === v ? 'bg-blue-600 text-white' : 'hover:bg-slate-800'}`}>{v === 'reminders' ? <span className="flex items-center gap-2"><Icons.MailWarning className="w-4 h-4"/> Reminders {metrics.overdueCount > 0 && v !== 'reminders' && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full ml-auto">{metrics.overdueCount}</span>}</span> : v}</button>))}
+                            {['dashboard','list','calendar','reminders','clients','items','settings'].map(v => (<button key={v} onClick={() => setView(v)} className={`w-full flex items-center p-3 rounded-lg capitalize ${view === v ? 'bg-blue-600 text-white' : 'hover:bg-slate-800'}`}>{v === 'reminders' ? <span className="flex items-center gap-2"><Icons.MailWarning className="w-4 h-4"/> Reminders {metrics.overdueCount > 0 && v !== 'reminders' && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full ml-auto">{metrics.overdueCount}</span>}</span> : (v === 'items' ? <span className="flex items-center gap-2"><Icons.Box className="w-4 h-4"/> Items</span> : v === 'calendar' ? <span className="flex items-center gap-2"><Icons.Calendar className="w-4 h-4"/> Calendar</span> : v)}</button>))}
                         </nav>
-                        {user && (
-                            <div className="p-4 border-t border-slate-800">
-                                <div className="text-xs text-slate-500 mb-1">Status:</div>
-                                <div className="text-xs font-mono text-emerald-400 truncate flex items-center gap-2">
-                                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                                    Connected to Cloud
-                                </div>
-                            </div>
-                        )}
+                        {user && <div className="p-4 border-t border-slate-800"><div className="text-xs text-slate-500 mb-1">Status:</div><div className="text-xs font-mono text-emerald-400 truncate flex items-center gap-2"><div className="w-2 h-2 bg-emerald-500 rounded-full"></div>Connected</div></div>}
                     </aside>
                     <main className="flex-1 overflow-auto p-8 relative z-0">
                         {view === 'dashboard' && (
                             <div className="space-y-6">
                                 <div className="flex justify-between items-center"><h1 className="text-2xl font-bold">Dashboard</h1><div className="flex gap-2"><Button onClick={() => createNew('quote')} variant="secondary"><Icons.FileAxis3d className="w-4 h-4 mr-2"/> New Quote</Button><Button onClick={() => createNew('invoice')}><Icons.Plus className="w-4 h-4 mr-2"/> New Invoice</Button></div></div>
-                                
-                                {/* --- NEW: AUTO-DETECTION ALERT BANNER --- */}
-                                {metrics.overdueCount > 0 && (
-                                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between animate-fade-in shadow-sm">
-                                        <div className="flex items-center gap-3">
-                                            <div className="bg-red-100 p-2 rounded-full text-red-600">
-                                                <Icons.MailWarning className="w-6 h-6" />
-                                            </div>
-                                            <div>
-                                                <h3 className="font-bold text-red-800 text-lg">Action Required: {metrics.overdueCount} Overdue Invoices</h3>
-                                                <p className="text-sm text-red-600">You have {metrics.overdueCount} invoices past their due date. Send reminders now to recover revenue.</p>
-                                            </div>
-                                        </div>
-                                        <Button variant="danger" onClick={() => setAutomationOpen(true)}>View Reminders</Button>
-                                    </div>
-                                )}
-
-                                <div className="grid grid-cols-4 gap-4">
-                                    <div className="bg-white p-6 rounded-xl border shadow-sm"><span className="text-sm text-slate-500">Revenue</span><div className="text-2xl font-bold">{formatCurrency(metrics.revenue)}</div></div>
-                                    <div className="bg-white p-6 rounded-xl border shadow-sm"><span className="text-sm text-slate-500">Outstanding</span><div className="text-2xl font-bold text-amber-600">{formatCurrency(metrics.outstanding)}</div></div>
-                                    <div className="bg-white p-6 rounded-xl border shadow-sm"><span className="text-sm text-slate-500">Potential (Quotes)</span><div className="text-2xl font-bold text-indigo-600">{formatCurrency(metrics.potential)}</div></div>
-                                    <div className="bg-white p-6 rounded-xl border shadow-sm"><span className="text-sm text-slate-500">Paid Invoices</span><div className="text-2xl font-bold text-emerald-600">{metrics.completed}</div></div>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="bg-white p-6 rounded-xl border shadow-sm h-80">
-                                        <h3 className="font-bold text-slate-700 mb-4">Financial Performance (6 Months)</h3>
-                                        <div className="h-64"><RevenueChart invoices={invoices} /></div>
-                                    </div>
-                                    {/* Recent Activity List */}
-                                    <div className="bg-white p-6 rounded-xl border shadow-sm h-80 overflow-y-auto custom-scroll">
-                                        <h3 className="font-bold text-slate-700 mb-4">Recent Activity</h3>
-                                        <div className="space-y-3">
-                                            {invoices.slice(0, 6).map(inv => (
-                                                <div key={inv.id} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-lg cursor-pointer border border-transparent hover:border-slate-100 transition-colors" onClick={() => { setCurrentInvoice(inv); setView('editor'); }}>
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`p-2 rounded-lg ${inv.status === 'Quote' ? 'bg-indigo-50 text-indigo-600' : 'bg-blue-50 text-blue-600'}`}>
-                                                            {inv.status === 'Quote' ? <Icons.FileAxis3d className="w-4 h-4" /> : <Icons.FileText className="w-4 h-4" />}
-                                                        </div>
-                                                        <div>
-                                                            <div className="font-medium text-sm">{inv.number}</div>
-                                                            <div className="text-xs text-slate-400">{inv.clientName || 'Unknown Client'}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <div className="font-bold text-sm">{formatCurrency(inv.total)}</div>
-                                                        <Badge status={inv.status} />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {invoices.length === 0 && <p className="text-slate-400 text-sm text-center py-4">No recent activity.</p>}
-                                        </div>
-                                    </div>
-                                </div>
+                                {metrics.overdueCount > 0 && <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between animate-fade-in shadow-sm"><div className="flex items-center gap-3"><div className="bg-red-100 p-2 rounded-full text-red-600"><Icons.MailWarning className="w-6 h-6" /></div><div><h3 className="font-bold text-red-800 text-lg">Action Required: {metrics.overdueCount} Overdue Invoices</h3><p className="text-sm text-red-600">You have {metrics.overdueCount} overdue invoices.</p></div></div><Button variant="danger" onClick={() => setAutomationOpen(true)}>View Reminders</Button></div>}
+                                <div className="grid grid-cols-4 gap-4"><div className="bg-white p-6 rounded-xl border shadow-sm"><span className="text-sm text-slate-500">Revenue</span><div className="text-2xl font-bold">{formatCurrency(metrics.revenue)}</div></div><div className="bg-white p-6 rounded-xl border shadow-sm"><span className="text-sm text-slate-500">Outstanding</span><div className="text-2xl font-bold text-amber-600">{formatCurrency(metrics.outstanding)}</div></div><div className="bg-white p-6 rounded-xl border shadow-sm"><span className="text-sm text-slate-500">Potential</span><div className="text-2xl font-bold text-indigo-600">{formatCurrency(metrics.potential)}</div></div><div className="bg-white p-6 rounded-xl border shadow-sm"><span className="text-sm text-slate-500">Paid Invoices</span><div className="text-2xl font-bold text-emerald-600">{metrics.completed}</div></div></div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="bg-white p-6 rounded-xl border shadow-sm h-80"><h3 className="font-bold text-slate-700 mb-4">Financial Performance</h3><div className="h-64"><RevenueChart invoices={invoices} /></div></div><div className="bg-white p-6 rounded-xl border shadow-sm h-80 overflow-y-auto custom-scroll"><h3 className="font-bold text-slate-700 mb-4">Recent Activity</h3><div className="space-y-3">{invoices.slice(0, 6).map(inv => (<div key={inv.id} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-lg cursor-pointer" onClick={() => { setCurrentInvoice(inv); setView('editor'); }}><div className="flex items-center gap-3"><div className={`p-2 rounded-lg ${inv.status === 'Quote' ? 'bg-indigo-50 text-indigo-600' : 'bg-blue-50 text-blue-600'}`}>{inv.status === 'Quote' ? <Icons.FileAxis3d className="w-4 h-4" /> : <Icons.FileText className="w-4 h-4" />}</div><div><div className="font-medium text-sm">{inv.number}</div><div className="text-xs text-slate-400">{inv.clientName}</div></div></div><div className="text-right"><div className="font-bold text-sm">{formatCurrency(inv.total)}</div><Badge status={inv.status} /></div></div>))}</div></div></div>
+                            </div>
+                        )}
+                        {/* CALENDAR VIEW */}
+                        {view === 'calendar' && (
+                            <div className="space-y-6">
+                                <h1 className="text-2xl font-bold">Calendar</h1>
+                                <CalendarView invoices={invoices} onSelectInvoice={(inv) => { setCurrentInvoice(inv); setView('editor'); }} />
                             </div>
                         )}
                         {view === 'list' && (
                             <div className="space-y-6">
                                 <div className="flex justify-between"><h1 className="text-2xl font-bold">Documents</h1><Button onClick={() => createNew('invoice')}><Icons.Plus className="w-4 h-4 mr-2"/> Create New</Button></div>
                                 <div className="flex gap-4"><input placeholder="Search..." className="border p-2 rounded flex-1" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /><div className="flex gap-1 bg-slate-100 p-1 rounded">{['All','Quote','Unpaid','Paid'].map(f => (<button key={f} onClick={() => setFilter(f)} className={`px-3 py-1 rounded text-sm ${filter === f ? 'bg-white shadow' : 'text-slate-500'}`}>{f}</button>))}</div></div>
-                                <div className="bg-white rounded-xl border shadow-sm overflow-hidden"><table className="w-full text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-4">Number</th><th className="p-4">Client</th><th className="p-4 text-right">Amount</th><th className="p-4 text-center">Status</th><th className="p-4"></th></tr></thead><tbody>{filteredInvoices.map(inv => (<tr key={inv.id} className="hover:bg-slate-50 border-b"><td className="p-4 font-medium">{inv.number}</td><td className="p-4">{inv.clientName}<div className="text-xs text-slate-500">{formatDate(inv.date)}</div></td><td className="p-4 text-right font-bold">{formatCurrency(inv.total)}</td><td className="p-4 text-center"><div className="flex justify-center group relative"><div className="cursor-pointer" onClick={() => { if(inv.status === 'Pending' || inv.status === 'Overdue' || inv.status === 'Draft') updateStatus(inv.id, 'Paid'); }} title="Click to Mark Paid"><Badge status={inv.status}/></div></div></td><td className="p-4 text-right flex justify-end gap-2"><Button variant="ghost" className="p-2" title="Duplicate" onClick={() => handleDuplicateClick(inv)}><Icons.Copy className="w-4 h-4 text-slate-400"/></Button><Button variant="ghost" onClick={() => { setCurrentInvoice(inv); setView('editor'); }}>Edit</Button></td></tr>))}</tbody></table></div>
-                            </div>
-                        )}
-                        {view === 'reminders' && (
-                            <div className="space-y-6">
-                                <h1 className="text-2xl font-bold">Unpaid Invoices</h1>
-                                <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-slate-50 border-b">
-                                            <tr>
-                                                <th className="p-4">Client</th>
-                                                <th className="p-4">Invoice #</th>
-                                                <th className="p-4">Due Date</th>
-                                                <th className="p-4 text-right">Amount Due</th>
-                                                <th className="p-4 text-center">Status</th>
-                                                <th className="p-4 text-right">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {invoices
-                                                .filter(inv => (inv.status === 'Pending' || inv.status === 'Overdue') && new Date(inv.dueDate) < new Date())
-                                                .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-                                                .map(inv => {
-                                                    const daysOverdue = Math.ceil((new Date() - new Date(inv.dueDate)) / (1000 * 60 * 60 * 24));
-                                                    return (
-                                                        <tr key={inv.id} className="hover:bg-slate-50 border-b">
-                                                            <td className="p-4 font-medium">{inv.clientName}</td>
-                                                            <td className="p-4">{inv.number}</td>
-                                                            <td className="p-4 text-slate-600">{formatDate(inv.dueDate)}</td>
-                                                            <td className="p-4 text-right font-bold text-red-600">{formatCurrency(inv.balanceDue || inv.total)}</td>
-                                                            <td className="p-4 text-center">
-                                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${daysOverdue > 30 ? 'bg-red-200 text-red-900' : 'bg-red-100 text-red-800'}`}>
-                                                                    {daysOverdue} Days Overdue
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-4 text-right">
-                                                                <a href={`mailto:${inv.clientEmail}?subject=${encodeURIComponent('Overdue Payment: ' + inv.number)}&body=${encodeURIComponent('Dear ' + inv.clientName + ',\n\nThis is a friendly reminder that invoice ' + inv.number + ' is overdue by ' + daysOverdue + ' days.\n\nPlease arrange payment at your earliest convenience.\n\nRegards,\n' + (settings?.companyName || 'Accounts'))}`}>
-                                                                    <Button variant="secondary" className="text-xs h-8"><Icons.Bell className="w-3 h-3 mr-2"/> Remind</Button>
-                                                                </a>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            {invoices.filter(inv => (inv.status === 'Pending' || inv.status === 'Overdue') && new Date(inv.dueDate) < new Date()).length === 0 && (
-                                                <tr><td colSpan="6" className="p-8 text-center text-slate-500">No overdue invoices found. Great job!</td></tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                <div className="bg-white rounded-xl border shadow-sm overflow-hidden"><table className="w-full text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-4">Number</th><th className="p-4">Client</th><th className="p-4 text-right">Amount</th><th className="p-4 text-center">Status</th><th className="p-4"></th></tr></thead><tbody>{filteredInvoices.map(inv => (<tr key={inv.id} className="hover:bg-slate-50 border-b"><td className="p-4 font-medium">{inv.number}</td><td className="p-4">{inv.clientName}<div className="text-xs text-slate-500">{formatDate(inv.date)}</div></td><td className="p-4 text-right font-bold">{formatCurrency(inv.total)}</td><td className="p-4 text-center"><div className="flex justify-center group relative"><div className="cursor-pointer" onClick={() => { if(inv.status === 'Pending' || inv.status === 'Overdue' || inv.status === 'Draft') updateStatus(inv.id, 'Paid'); }}><Badge status={inv.status}/></div></div></td><td className="p-4 text-right flex justify-end gap-2"><Button variant="ghost" onClick={() => handleDuplicateClick(inv)}><Icons.Copy className="w-4 h-4 text-slate-400"/></Button><Button variant="ghost" onClick={() => { setCurrentInvoice(inv); setView('editor'); }}>Edit</Button></td></tr>))}</tbody></table></div>
                             </div>
                         )}
                         {view === 'clients' && (
-                            <div className="space-y-6"><h1 className="text-2xl font-bold">Clients</h1><div className="bg-slate-100 p-4 rounded-lg space-y-2"><h3 className="font-bold">{clientForm.id ? 'Edit Client' : 'Add Client'}</h3><form onSubmit={(e) => { e.preventDefault(); saveClient(); }}><div className="grid grid-cols-2 gap-2"><input name="name" placeholder="Name" className="p-2 border rounded" required value={clientForm.name} onChange={e => setClientForm({...clientForm, name: e.target.value})} /><input name="email" placeholder="Email" className="p-2 border rounded" value={clientForm.email} onChange={e => setClientForm({...clientForm, email: e.target.value})} /><input name="phone" placeholder="Phone" className="p-2 border rounded" value={clientForm.phone} onChange={e => setClientForm({...clientForm, phone: e.target.value})} /><input name="address" placeholder="Address" className="p-2 border rounded" value={clientForm.address} onChange={e => setClientForm({...clientForm, address: e.target.value})} /></div><div className="flex gap-2 mt-2"><Button type="submit">{clientForm.id ? 'Update Client' : 'Save Client'}</Button>{clientForm.id && <Button type="button" variant="secondary" onClick={() => setClientForm({ name: '', email: '', phone: '', address: '' })}>Cancel</Button>}</div></form></div><div className="bg-white rounded-xl border">{clients.map(c => (<div key={c.id} className="p-4 border-b flex justify-between items-center"><div><div className="font-bold">{c.name}</div><div className="text-sm text-slate-500">{c.email}</div></div><div className="flex gap-2"><Button variant="secondary" onClick={() => editClient(c)}><Icons.Edit className="w-4 h-4 text-slate-600"/></Button><Button variant="danger" onClick={() => deleteDocHandler(c.id, 'clients')}><Icons.Trash2 className="w-4 h-4"/></Button></div></div>))}</div></div>
-                        )}
-                        {view === 'settings' && (
-                            <div className="max-w-2xl"><h1 className="text-2xl font-bold mb-6">Settings</h1>
-                                <div className="bg-white p-6 rounded-xl border shadow-sm space-y-6">
-                                    <div>
-                                        <h3 className="font-bold text-lg mb-2">Company Details</h3>
-                                        {/* LOGO UPLOADER */}
-                                        <div className="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
-                                            <label className="text-sm font-bold text-slate-700 block mb-2">Company Logo</label>
-                                            <div className="flex items-start gap-4">
-                                                {settings?.companyLogo ? (
-                                                    <div className="relative group">
-                                                        <img src={settings.companyLogo} alt="Logo" className="h-20 w-auto object-contain border bg-white rounded" />
-                                                        <button onClick={handleRemoveLogo} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <Icons.Trash2 className="w-3 h-3" />
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <div className="h-20 w-20 bg-white border border-dashed border-slate-300 rounded flex items-center justify-center text-slate-300">
-                                                        <Icons.Image className="w-8 h-8" />
-                                                    </div>
-                                                )}
-                                                <div className="flex-1">
-                                                    <input 
-                                                        type="file" 
-                                                        accept="image/*" 
-                                                        onChange={handleLogoUpload} 
-                                                        className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
-                                                    />
-                                                    <p className="text-xs text-slate-400 mt-2">Recommended: PNG or JPG with transparent background. Max 2MB.</p>
-                                                </div>
+                            <div className="space-y-6">
+                                <h1 className="text-2xl font-bold">Clients</h1>
+                                <div className="bg-slate-100 p-4 rounded-lg space-y-2"><h3 className="font-bold">{clientForm.id ? 'Edit Client' : 'Add Client'}</h3><form onSubmit={(e) => { e.preventDefault(); saveClient(); }}><div className="grid grid-cols-2 gap-2"><input name="name" placeholder="Name" className="p-2 border rounded" required value={clientForm.name} onChange={e => setClientForm({...clientForm, name: e.target.value})} /><input name="email" placeholder="Email" className="p-2 border rounded" value={clientForm.email} onChange={e => setClientForm({...clientForm, email: e.target.value})} /><input name="phone" placeholder="Phone" className="p-2 border rounded" value={clientForm.phone} onChange={e => setClientForm({...clientForm, phone: e.target.value})} /><input name="address" placeholder="Address" className="p-2 border rounded" value={clientForm.address} onChange={e => setClientForm({...clientForm, address: e.target.value})} /></div><div className="flex gap-2 mt-2"><Button type="submit">{clientForm.id ? 'Update Client' : 'Save Client'}</Button>{clientForm.id && <Button type="button" variant="secondary" onClick={() => setClientForm({ name: '', email: '', phone: '', address: '' })}>Cancel</Button>}</div></form></div>
+                                <div className="bg-white rounded-xl border">
+                                    {clients.map(c => (
+                                        <div key={c.id} className="p-4 border-b flex justify-between items-center hover:bg-slate-50 transition-colors">
+                                            <div><div className="font-bold text-lg">{c.name}</div><div className="text-sm text-slate-500">{c.email}</div><div className="text-xs text-slate-400">{c.address}</div></div>
+                                            <div className="flex items-center gap-2">
+                                                {/* ONE-TAP ACTIONS */}
+                                                <a href={`tel:${c.phone}`} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 border border-green-200" title="Call"><Icons.Phone className="w-4 h-4"/></a>
+                                                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}`} target="_blank" className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-200" title="Navigate"><Icons.MapPin className="w-4 h-4"/></a>
+                                                <div className="h-6 w-px bg-slate-200 mx-1"></div>
+                                                <Button variant="secondary" className="text-xs" onClick={() => createNew('quote', c)}>Quote</Button><Button variant="secondary" className="text-xs" onClick={() => createNew('invoice', c)}>Inv</Button>
+                                                <Button variant="ghost" onClick={() => editClient(c)}><Icons.Edit className="w-4 h-4 text-slate-600"/></Button><Button variant="danger" onClick={() => deleteDocHandler(c.id, 'clients')}><Icons.Trash2 className="w-4 h-4"/></Button>
                                             </div>
                                         </div>
-
-                                        <div className="space-y-4"><Input label="Company Name" value={settings?.companyName || ''} onChange={e => setSettings({...settings, companyName: e.target.value})} /><div className="grid grid-cols-2 gap-4"><Input label="Email" value={settings?.companyEmail || ''} onChange={e => setSettings({...settings, companyEmail: e.target.value})} /><Input label="Phone" value={settings?.companyPhone || ''} onChange={e => setSettings({...settings, companyPhone: e.target.value})} /></div><Input label="Address" value={settings?.companyAddress || ''} onChange={e => setSettings({...settings, companyAddress: e.target.value})} /></div>
-                                    </div>
-                                    <div className="border-t pt-4"><h3 className="font-bold text-lg mb-2">Service Rates</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{PREDEFINED_SERVICES_DEFAULTS.filter(s => s.id !== 'custom').map(service => (<div key={service.id} className="flex flex-col gap-1"><label className="text-xs font-semibold text-slate-600">{service.label}</label><div className="relative"><span className="absolute left-3 top-2 text-slate-400">R</span><input type="number" className="w-full pl-8 p-2 border rounded" placeholder={service.rate} value={settings?.serviceRates?.[service.id] ?? service.rate} onChange={e => setSettings({ ...settings, serviceRates: { ...(settings?.serviceRates || {}), [service.id]: e.target.value } })} /></div></div>))}</div></div>
-                                    
-                                    <div className="border-t pt-4 space-y-4">
-                                        <h3 className="font-bold text-lg">Default Notes & Terms</h3>
-                                        <div>
-                                            <label className="text-sm font-bold text-slate-700">Default Quote Notes</label>
-                                            <textarea className="w-full border p-2 rounded h-20 text-sm" placeholder="This quote is valid for 30 days..." value={settings?.quoteNotes || ''} onChange={e => setSettings({...settings, quoteNotes: e.target.value})} />
-                                        </div>
-                                        <div>
-                                            <label className="text-sm font-bold text-slate-700">Default Invoice Notes</label>
-                                            <textarea className="w-full border p-2 rounded h-20 text-sm" placeholder="Thank you for your business..." value={settings?.invoiceNotes || ''} onChange={e => setSettings({...settings, invoiceNotes: e.target.value})} />
-                                        </div>
-                                        <div>
-                                            <label className="text-sm font-bold text-slate-700">Banking Details</label>
-                                            <textarea className="w-full border p-2 rounded h-24 text-sm font-mono" placeholder="Bank Name: &#10;Account No: &#10;Branch Code:" value={settings?.bankingDetails || ''} onChange={e => setSettings({...settings, bankingDetails: e.target.value})} />
-                                            <p className="text-xs text-slate-400 mt-1">These details will appear on PDF Quotes and Invoices.</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Email Templates & Automation */}
-                                    <div className="border-t pt-4 space-y-4">
-                                        <h3 className="font-bold text-lg">Email Templates</h3>
-                                        <p className="text-xs text-slate-500">Available placeholders: {'{clientName}'}, {'{number}'}, {'{total}'}, {'{dueDate}'}, {'{companyName}'}</p>
-                                        
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <label className="text-sm font-bold text-indigo-700">Quote Email</label>
-                                                <Input placeholder="Subject: Quote {number}" value={settings?.quoteEmailSubject || ''} onChange={e => setSettings({...settings, quoteEmailSubject: e.target.value})} />
-                                                <textarea className="w-full border p-2 rounded h-32 text-sm" placeholder="Body..." value={settings?.quoteEmailBody || ''} onChange={e => setSettings({...settings, quoteEmailBody: e.target.value})} />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-sm font-bold text-blue-700">Invoice Email</label>
-                                                <Input placeholder="Subject: Invoice {number}" value={settings?.invoiceEmailSubject || ''} onChange={e => setSettings({...settings, invoiceEmailSubject: e.target.value})} />
-                                                <textarea className="w-full border p-2 rounded h-32 text-sm" placeholder="Body..." value={settings?.invoiceEmailBody || ''} onChange={e => setSettings({...settings, invoiceEmailBody: e.target.value})} />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Email Automation Config */}
-                                    <div className="border-t pt-4 space-y-4">
-                                        <h3 className="font-bold text-lg text-emerald-800">Email Automation (EmailJS)</h3>
-                                        <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-lg text-sm text-emerald-800">
-                                            <strong>Get these keys for free (200 emails/month):</strong>
-                                            <ol className="list-decimal ml-4 mt-2 space-y-1">
-                                                <li>Go to <a href="https://www.emailjs.com/" target="_blank" className="underline">emailjs.com</a> and sign up.</li>
-                                                <li>Add Service -> Gmail (Connect your account).</li>
-                                                <li>Email Templates -> Create New Template.</li>
-                                                <li>Copy your Service ID, Template ID, and Public Key (Account -> API Keys).</li>
-                                            </ol>
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-4">
-                                            <Input label="Service ID" placeholder="service_xyz..." value={settings?.emailjsServiceId || ''} onChange={e => setSettings({...settings, emailjsServiceId: e.target.value})} />
-                                            <Input label="Template ID" placeholder="template_abc..." value={settings?.emailjsTemplateId || ''} onChange={e => setSettings({...settings, emailjsTemplateId: e.target.value})} />
-                                            <Input label="Public Key" placeholder="user_123..." value={settings?.emailjsPublicKey || ''} onChange={e => setSettings({...settings, emailjsPublicKey: e.target.value})} />
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="border-t pt-4">
-                                        <h3 className="font-bold text-lg mb-2 text-slate-800">Data Management</h3>
-                                        <p className="text-sm text-slate-500 mb-4">Export all your data to a JSON file for backup purposes.</p>
-                                        <div className="flex gap-2">
-                                            <Button onClick={exportData} variant="secondary">
-                                                <Icons.Download className="w-4 h-4 mr-2"/> Export Data Backup
-                                            </Button>
-                                            <Button onClick={handleDisconnect} variant="danger">
-                                                Disconnect Database
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    <Button onClick={() => saveSettingsHandler(settings)}>Save Settings</Button>
+                                    ))}
                                 </div>
                             </div>
                         )}
+                        {/* Items View */}
+                        {view === 'items' && (
+                            <div className="space-y-6"><h1 className="text-2xl font-bold flex items-center gap-2"><Icons.Box className="w-6 h-6"/> Items & Rates</h1><div className="bg-slate-100 p-4 rounded-lg space-y-2 border border-slate-200"><h3 className="font-bold text-slate-700">{itemForm.id ? 'Edit Item' : 'Add New Item'}</h3><form onSubmit={(e) => { e.preventDefault(); saveItem(); }}><div className="grid grid-cols-1 md:grid-cols-4 gap-2"><div className="md:col-span-2"><input name="description" placeholder="Description" className="w-full p-2 border rounded" required value={itemForm.description} onChange={e => setItemForm({...itemForm, description: e.target.value})} /></div><div className="relative"><span className="absolute left-3 top-2 text-slate-400 text-sm">R</span><input type="number" name="rate" placeholder="Rate" className="w-full pl-6 p-2 border rounded" required value={itemForm.rate} onChange={e => setItemForm({...itemForm, rate: e.target.value})} /></div><div className="relative"><span className="absolute left-3 top-2 text-slate-400 text-sm">R</span><input type="number" name="cost" placeholder="Cost" className="w-full pl-6 p-2 border rounded" value={itemForm.cost} onChange={e => setItemForm({...itemForm, cost: e.target.value})} /></div></div><div className="flex gap-2 mt-2"><select className="p-2 border rounded bg-white" value={itemForm.type} onChange={e => setItemForm({...itemForm, type: e.target.value})}><option value="material">Material / Part</option><option value="labor">Labor</option><option value="travel">Travel</option></select><Button type="submit">{itemForm.id ? 'Update Item' : 'Save Item'}</Button>{itemForm.id && <Button type="button" variant="secondary" onClick={() => setItemForm({ description: '', rate: '', cost: '', type: 'material' })}>Cancel</Button>}</div></form></div><div className="bg-white rounded-xl border shadow-sm overflow-hidden"><table className="w-full text-left text-sm"><thead className="bg-slate-50 border-b"><tr><th className="p-3">Description</th><th className="p-3">Type</th><th className="p-3 text-right">Rate</th><th className="p-3 text-right text-slate-400">Cost</th><th className="p-3 text-right">Actions</th></tr></thead><tbody>{items.map(item => (<tr key={item.id} className="border-b hover:bg-slate-50"><td className="p-3 font-medium">{item.description}</td><td className="p-3"><span className="capitalize bg-slate-100 px-2 py-1 rounded text-xs text-slate-500">{item.type}</span></td><td className="p-3 text-right font-mono">{formatCurrency(item.rate)}</td><td className="p-3 text-right font-mono text-slate-400">{item.cost ? formatCurrency(item.cost) : '-'}</td><td className="p-3 text-right flex justify-end gap-2"><Button variant="ghost" className="p-1 h-8" onClick={() => editItem(item)}><Icons.Edit className="w-4 h-4 text-slate-600"/></Button><Button variant="danger" className="p-1 h-8" onClick={() => deleteDocHandler(item.id, 'items')}><Icons.Trash2 className="w-4 h-4"/></Button></td></tr>))}</tbody></table></div></div>
+                        )}
+                        {view === 'settings' && (
+                            <div className="max-w-2xl"><h1 className="text-2xl font-bold mb-6">Settings</h1><div className="bg-white p-6 rounded-xl border shadow-sm space-y-6"><div><h3 className="font-bold text-lg mb-2">Company Details</h3><div className="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200"><label className="text-sm font-bold text-slate-700 block mb-2">Company Logo</label><div className="flex items-start gap-4">{settings?.companyLogo ? (<div className="relative group"><img src={settings.companyLogo} alt="Logo" className="h-20 w-auto object-contain border bg-white rounded" /><button onClick={handleRemoveLogo} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Icons.Trash2 className="w-3 h-3" /></button></div>) : (<div className="h-20 w-20 bg-white border border-dashed border-slate-300 rounded flex items-center justify-center text-slate-300"><Icons.Image className="w-8 h-8" /></div>)}<div className="flex-1"><input type="file" accept="image/*" onChange={handleLogoUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" /><p className="text-xs text-slate-400 mt-2">Recommended: PNG or JPG with transparent background. Max 2MB.</p></div></div></div><div className="space-y-4"><Input label="Company Name" value={settings?.companyName || ''} onChange={e => setSettings({...settings, companyName: e.target.value})} /><div className="grid grid-cols-2 gap-4"><Input label="Email" value={settings?.companyEmail || ''} onChange={e => setSettings({...settings, companyEmail: e.target.value})} /><Input label="Phone" value={settings?.companyPhone || ''} onChange={e => setSettings({...settings, companyPhone: e.target.value})} /></div><Input label="Address" value={settings?.companyAddress || ''} onChange={e => setSettings({...settings, companyAddress: e.target.value})} /></div></div><div className="border-t pt-4"><h3 className="font-bold text-lg mb-2">Service Rates</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{PREDEFINED_SERVICES_DEFAULTS.filter(s => s.id !== 'custom').map(service => (<div key={service.id} className="flex flex-col gap-1"><label className="text-xs font-semibold text-slate-600">{service.label}</label><div className="relative"><span className="absolute left-3 top-2 text-slate-400">R</span><input type="number" className="w-full pl-8 p-2 border rounded" placeholder={service.rate} value={settings?.serviceRates?.[service.id] ?? service.rate} onChange={e => setSettings({ ...settings, serviceRates: { ...(settings?.serviceRates || {}), [service.id]: e.target.value } })} /></div></div>))}</div></div><div className="border-t pt-4 space-y-4"><h3 className="font-bold text-lg">Default Notes & Terms</h3><div><label className="text-sm font-bold text-slate-700">Default Quote Notes</label><textarea className="w-full border p-2 rounded h-20 text-sm" placeholder="This quote is valid for 30 days..." value={settings?.quoteNotes || ''} onChange={e => setSettings({...settings, quoteNotes: e.target.value})} /></div><div><label className="text-sm font-bold text-slate-700">Default Invoice Notes</label><textarea className="w-full border p-2 rounded h-20 text-sm" placeholder="Thank you for your business..." value={settings?.invoiceNotes || ''} onChange={e => setSettings({...settings, invoiceNotes: e.target.value})} /></div><div><label className="text-sm font-bold text-slate-700">Banking Details</label><textarea className="w-full border p-2 rounded h-24 text-sm font-mono" placeholder="Bank Name: &#10;Account No: &#10;Branch Code:" value={settings?.bankingDetails || ''} onChange={e => setSettings({...settings, bankingDetails: e.target.value})} /><p className="text-xs text-slate-400 mt-1">These details will appear on PDF Quotes and Invoices.</p></div></div><div className="border-t pt-4 space-y-4"><h3 className="font-bold text-lg">Email Automation (EmailJS)</h3><div className="grid grid-cols-3 gap-4"><Input label="Service ID" value={settings?.emailjsServiceId || ''} onChange={e => setSettings({...settings, emailjsServiceId: e.target.value})} /><Input label="Template ID" value={settings?.emailjsTemplateId || ''} onChange={e => setSettings({...settings, emailjsTemplateId: e.target.value})} /><Input label="Public Key" value={settings?.emailjsPublicKey || ''} onChange={e => setSettings({...settings, emailjsPublicKey: e.target.value})} /></div></div><div className="border-t pt-4"><div className="flex gap-2"><Button onClick={exportData} variant="secondary"><Icons.Download className="w-4 h-4 mr-2"/> Export Data Backup</Button><Button onClick={handleDisconnect} variant="danger">Disconnect Database</Button></div></div><Button onClick={() => saveSettingsHandler(settings)}>Save Settings</Button></div></div>
+                        )}
+                        {/* EDITOR WITH PROFIT HEALTH & SIGNATURE */}
                         {view === 'editor' && currentInvoice && (
                             <div className="max-w-4xl mx-auto pb-20">
                                 <div className="flex justify-between items-center mb-6"><Button variant="ghost" onClick={() => setView('list')}><Icons.ChevronLeft className="w-4 h-4 mr-2"/> Back</Button><div className="flex gap-2">{currentInvoice.status === 'Quote' && currentInvoice.id && <Button variant="success" onClick={handleConvertClick}><Icons.ArrowRight className="w-4 h-4 mr-2"/> Convert to Inv</Button>}{currentInvoice.id && <Button variant="secondary" onClick={() => handleDuplicateClick()}><Icons.Copy className="w-4 h-4 mr-2"/> Duplicate</Button>}<Button variant="secondary" onClick={() => setView('preview')}><Icons.Printer className="w-4 h-4 mr-2"/> Preview</Button><Button onClick={saveInvoice} title="Ctrl + S to Save"><Icons.Save className="w-4 h-4 mr-2"/> Save</Button></div></div>
@@ -1615,41 +1376,109 @@
                                         <div className="grid grid-cols-2 gap-6">
                                             <div className="space-y-2">
                                                 <label className="text-sm font-bold">Client</label>
-                                                <ClientSelect 
-                                                    clients={clients} 
-                                                    value={currentInvoice.clientName} 
-                                                    onSelect={(c) => setCurrentInvoice({...currentInvoice, clientName: c.name, clientEmail: c.email, billingAddress: c.address})} 
-                                                />
-                                                <Input placeholder="Email" value={currentInvoice.clientEmail} onChange={e => setCurrentInvoice({...currentInvoice, clientEmail: e.target.value})} /><textarea placeholder="Billing Address" className="w-full p-2 border rounded h-20" value={currentInvoice.billingAddress} onChange={e => setCurrentInvoice({...currentInvoice, billingAddress: e.target.value})} />
+                                                <ClientSelect clients={clients} value={currentInvoice.clientName} onSelect={(c) => setCurrentInvoice({...currentInvoice, clientName: c.name, clientEmail: c.email, billingAddress: c.address})} />
+                                                <Input placeholder="Email" value={currentInvoice.clientEmail} onChange={e => setCurrentInvoice({...currentInvoice, clientEmail: e.target.value})} />
+                                                <div className="relative">
+                                                    <textarea placeholder="Billing Address" className="w-full p-2 border rounded h-20" value={currentInvoice.billingAddress} onChange={e => setCurrentInvoice({...currentInvoice, billingAddress: e.target.value})} />
+                                                    {/* MAP LINK */}
+                                                    {currentInvoice.billingAddress && <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(currentInvoice.billingAddress)}`} target="_blank" className="absolute top-2 right-2 p-1.5 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200" title="Open Map"><Icons.MapPin className="w-4 h-4"/></a>}
+                                                </div>
                                             </div>
                                             <div className="space-y-2"><label className="text-sm font-bold">Job Details</label><textarea placeholder="Work Description (Scope of Work)" className="w-full p-2 border rounded h-20" value={currentInvoice.workDescription} onChange={e => setCurrentInvoice({...currentInvoice, workDescription: e.target.value})} /><Input type="date" label="Due Date" value={currentInvoice.dueDate} onChange={e => setCurrentInvoice({...currentInvoice, dueDate: e.target.value})} /></div>
                                         </div>
                                         <div className="border-t pt-4">
-                                            <div className="flex justify-between items-center mb-4">
-                                                <h3 className="font-bold text-slate-800">Items & Charges</h3>
-                                                <div className="flex items-center gap-2"><span className="text-sm text-slate-500">Show Costs (Profit)</span><button onClick={() => setShowCosts(!showCosts)} className={`w-10 h-6 rounded-full p-1 transition-colors ${showCosts ? 'bg-blue-600' : 'bg-slate-300'}`}><div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${showCosts ? 'translate-x-4' : 'translate-x-0'}`}></div></button></div>
+                                            <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800">Items & Charges</h3><div className="flex items-center gap-2"><span className="text-sm text-slate-500">Show Costs (Profit)</span><button onClick={() => setShowCosts(!showCosts)} className={`w-10 h-6 rounded-full p-1 transition-colors ${showCosts ? 'bg-blue-600' : 'bg-slate-300'}`}><div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${showCosts ? 'translate-x-4' : 'translate-x-0'}`}></div></button></div></div>
+                                            <div className="space-y-3">
+                                                {currentInvoice.items.map((item, idx) => (
+                                                    <div key={item.id} className="flex flex-col md:flex-row gap-2 items-start bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                        <div className="flex flex-col gap-1 pt-1">
+                                                            {/* REORDER BUTTONS */}
+                                                            <button onClick={() => moveItem(idx, -1)} className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600"><Icons.ArrowUp className="w-4 h-4"/></button>
+                                                            <button onClick={() => moveItem(idx, 1)} className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600"><Icons.ArrowDown className="w-4 h-4"/></button>
+                                                        </div>
+                                                        <div className="flex-1 w-full">
+                                                            <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Item</label>
+                                                            <select className="w-full p-2 border rounded bg-white text-slate-700 mb-2 text-sm" onChange={(e) => { const service = availableServices.find(s => s.id === e.target.value); if (service && service.id !== 'custom') { const newItems = [...currentInvoice.items]; newItems[idx].description = service.description; newItems[idx].rate = service.rate; newItems[idx].cost = service.cost || 0; setCurrentInvoice({...currentInvoice, items: newItems}); } }} defaultValue=""><option value="" disabled>Select...</option>{availableServices.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
+                                                            <input className="w-full p-2 border rounded bg-white" placeholder="Description" value={item.description} onChange={e => { const newItems = [...currentInvoice.items]; newItems[idx].description = e.target.value; setCurrentInvoice({...currentInvoice, items: newItems}); }} />
+                                                        </div>
+                                                        <div className="flex gap-2 w-full md:w-auto">
+                                                            <div className="w-20"><label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Qty</label><input type="number" className="w-full p-2 border rounded bg-white text-center" value={item.quantity} onChange={e => { const newItems = [...currentInvoice.items]; newItems[idx].quantity = Number(e.target.value); setCurrentInvoice({...currentInvoice, items: newItems}); }} /></div>
+                                                            <div className="w-28"><label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Rate</label><input type="number" className="w-full p-2 border rounded bg-white text-right" value={item.rate} onChange={e => { const newItems = [...currentInvoice.items]; newItems[idx].rate = Number(e.target.value); setCurrentInvoice({...currentInvoice, items: newItems}); }} /></div>
+                                                            {showCosts && (<div className="w-24"><label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block text-orange-600">Cost</label><input type="number" className="w-full p-2 border border-orange-200 rounded bg-orange-50 text-right text-orange-800" value={item.cost || 0} onChange={e => { const newItems = [...currentInvoice.items]; newItems[idx].cost = Number(e.target.value); setCurrentInvoice({...currentInvoice, items: newItems}); }} /></div>)}
+                                                            <div className="pt-6"><Button variant="danger" className="h-[42px]" onClick={() => { const newItems = currentInvoice.items.filter(i => i.id !== item.id); setCurrentInvoice({...currentInvoice, items: newItems}); }}><Icons.Trash2 className="w-4 h-4"/></Button></div>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-                                            <div className="space-y-3">{currentInvoice.items.map((item, idx) => (<div key={item.id} className="flex flex-col md:flex-row gap-2 items-start bg-slate-50 p-3 rounded-lg border border-slate-200"><div className="flex-1 w-full"><label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Item / Service</label><select className="w-full p-2 border rounded bg-white text-slate-700 mb-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" onChange={(e) => { const service = availableServices.find(s => s.id === e.target.value); if (service && service.id !== 'custom') { const newItems = [...currentInvoice.items]; newItems[idx].description = service.description; newItems[idx].rate = service.rate; setCurrentInvoice({...currentInvoice, items: newItems}); } }} defaultValue=""><option value="" disabled>Select a preset...</option>{availableServices.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select><input className="w-full p-2 border rounded bg-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Description" value={item.description} onChange={e => { const newItems = [...currentInvoice.items]; newItems[idx].description = e.target.value; setCurrentInvoice({...currentInvoice, items: newItems}); }} /></div><div className="flex gap-2 w-full md:w-auto"><div className="w-20"><label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Qty</label><input type="number" className="w-full p-2 border rounded bg-white text-center" placeholder="1" value={item.quantity} onChange={e => { const newItems = [...currentInvoice.items]; newItems[idx].quantity = Number(e.target.value); setCurrentInvoice({...currentInvoice, items: newItems}); }} /></div><div className="w-28"><label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Rate (R)</label><input type="number" className="w-full p-2 border rounded bg-white text-right" placeholder="0.00" value={item.rate} onChange={e => { const newItems = [...currentInvoice.items]; newItems[idx].rate = Number(e.target.value); setCurrentInvoice({...currentInvoice, items: newItems}); }} /></div>
-                                            {showCosts && (<div className="w-24"><label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block text-orange-600">Cost (R)</label><input type="number" className="w-full p-2 border border-orange-200 rounded bg-orange-50 text-right text-orange-800" placeholder="0.00" value={item.cost || 0} onChange={e => { const newItems = [...currentInvoice.items]; newItems[idx].cost = Number(e.target.value); setCurrentInvoice({...currentInvoice, items: newItems}); }} /></div>)}
-                                            <div className="pt-6"><Button variant="danger" className="h-[42px]" onClick={() => { const newItems = currentInvoice.items.filter(i => i.id !== item.id); setCurrentInvoice({...currentInvoice, items: newItems}); }}><Icons.Trash2 className="w-4 h-4"/></Button></div></div></div>))}</div><Button variant="secondary" className="mt-4" onClick={() => setCurrentInvoice({...currentInvoice, items: [...currentInvoice.items, { id: generateId(), description: '', quantity: 1, rate: 0, cost: 0 }]})}><Icons.Plus className="w-4 h-4 mr-2"/> Add Line Item</Button></div>
+                                            <Button variant="secondary" className="mt-4" onClick={() => setCurrentInvoice({...currentInvoice, items: [...currentInvoice.items, { id: generateId(), description: '', quantity: 1, rate: 0, cost: 0 }]})}><Icons.Plus className="w-4 h-4 mr-2"/> Add Line Item</Button>
+                                        </div>
+
+                                        {/* EXPENSES SECTION */}
+                                        <div className="border-t pt-4 bg-orange-50/50 p-4 rounded-lg border border-orange-100">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h3 className="font-bold text-orange-800 flex items-center gap-2"><Icons.CreditCard className="w-4 h-4"/> Job Expenses (Internal)</h3>
+                                                <span className="text-xs text-orange-600">Not shown on client invoice</span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {(currentInvoice.expenses || []).map((exp, idx) => (
+                                                    <div key={exp.id} className="flex gap-2">
+                                                        <input className="flex-1 p-2 border border-orange-200 rounded text-sm" placeholder="Expense (e.g. Fuel, Parts bought)" value={exp.description} onChange={e => { const newExp = [...(currentInvoice.expenses || [])]; newExp[idx].description = e.target.value; setCurrentInvoice({...currentInvoice, expenses: newExp}); }} />
+                                                        <input type="number" className="w-24 p-2 border border-orange-200 rounded text-right text-sm" placeholder="0.00" value={exp.amount} onChange={e => { const newExp = [...(currentInvoice.expenses || [])]; newExp[idx].amount = Number(e.target.value); setCurrentInvoice({...currentInvoice, expenses: newExp}); }} />
+                                                        <Button variant="danger" className="px-2" onClick={() => { const newExp = (currentInvoice.expenses || []).filter(e => e.id !== exp.id); setCurrentInvoice({...currentInvoice, expenses: newExp}); }}><Icons.X className="w-4 h-4"/></Button>
+                                                    </div>
+                                                ))}
+                                                <Button variant="secondary" className="text-xs text-orange-700 border-orange-200 bg-white hover:bg-orange-50" onClick={() => setCurrentInvoice({...currentInvoice, expenses: [...(currentInvoice.expenses || []), { id: generateId(), description: '', amount: 0 }]})}>+ Add Expense</Button>
+                                            </div>
+                                        </div>
                                         
-                                        {/* UPDATED EDITOR FOOTER */}
                                         <div className="border-t pt-4 grid grid-cols-2 gap-8">
                                             <div className="space-y-4">
                                                 <div>
                                                     <label className="text-sm font-bold text-slate-700">Notes & Terms</label>
-                                                    <textarea className="w-full border p-2 rounded h-24 text-sm" placeholder="Notes..." value={currentInvoice.notes} onChange={e => setCurrentInvoice({...currentInvoice, notes: e.target.value})} />
+                                                    <textarea className="w-full border p-2 rounded h-24 text-sm mb-2" value={currentInvoice.notes} onChange={e => setCurrentInvoice({...currentInvoice, notes: e.target.value})} />
+                                                    {/* QUICK SNIPPETS */}
+                                                    <div className="flex gap-2 flex-wrap">
+                                                        {['Standard Warranty', 'Payment Terms', 'Thank You'].map(text => (
+                                                            <button key={text} onClick={() => setCurrentInvoice({...currentInvoice, notes: currentInvoice.notes + (currentInvoice.notes ? '\n\n' : '') + (text === 'Standard Warranty' ? 'All workmanship guaranteed for 6 months.' : text === 'Payment Terms' ? '50% Deposit required to commence work. Balance due on completion.' : 'Thank you for your business!')})} className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded border border-slate-200 transition-colors">
+                                                                + {text}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 </div>
+                                                <div><label className="text-sm font-bold text-slate-700 flex items-center gap-2"><Icons.Bank className="w-3 h-3"/> Banking Details</label><textarea className="w-full border p-2 rounded h-24 text-sm font-mono" value={currentInvoice.bankingDetails || ''} onChange={e => setCurrentInvoice({...currentInvoice, bankingDetails: e.target.value})} /></div>
+                                                {/* SIGNATURE BUTTON */}
                                                 <div>
-                                                    <label className="text-sm font-bold text-slate-700 flex items-center gap-2"><Icons.Bank className="w-3 h-3"/> Banking Details</label>
-                                                    <textarea className="w-full border p-2 rounded h-24 text-sm font-mono" placeholder="Bank details..." value={currentInvoice.bankingDetails || ''} onChange={e => setCurrentInvoice({...currentInvoice, bankingDetails: e.target.value})} />
+                                                    <label className="text-sm font-bold text-slate-700 mb-2 block">Client Approval</label>
+                                                    <div className="flex items-center gap-4">
+                                                        {currentInvoice.clientSignature ? (
+                                                            <div className="relative group">
+                                                                <img src={currentInvoice.clientSignature} alt="Signed" className="h-12 border bg-white" />
+                                                                <button onClick={() => setCurrentInvoice({...currentInvoice, clientSignature: null})} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Icons.X className="w-3 h-3"/></button>
+                                                            </div>
+                                                        ) : (
+                                                            <Button variant="secondary" onClick={() => setShowSignaturePad(true)}><Icons.PenTool className="w-4 h-4 mr-2"/> Capture Signature</Button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="space-y-2 text-right">
                                                 <div className="flex justify-between items-center"><span className="text-sm">Discount</span><input type="number" className="border p-1 rounded w-20 text-right" value={currentInvoice.discountValue} onChange={e => setCurrentInvoice({...currentInvoice, discountValue: Number(e.target.value)})} /></div>
                                                 <div className="flex justify-between items-center"><span className="text-sm">Deposit Paid</span><input type="number" className="border p-1 rounded w-20 text-right" value={currentInvoice.deposit} onChange={e => setCurrentInvoice({...currentInvoice, deposit: Number(e.target.value)})} /></div>
-                                                <div className="text-xl font-bold">Total: {formatCurrency(calculateTotals(currentInvoice.items, currentInvoice.discountValue, currentInvoice.discountType, currentInvoice.taxRate, currentInvoice.deposit).total)}</div>
-                                                {showCosts && (<div className="text-sm text-emerald-600 pt-2 border-t mt-2">Est. Profit: {formatCurrency(calculateTotals(currentInvoice.items, currentInvoice.discountValue, currentInvoice.discountType, currentInvoice.taxRate, currentInvoice.deposit).profit)} ({calculateTotals(currentInvoice.items, currentInvoice.discountValue, currentInvoice.discountType, currentInvoice.taxRate, currentInvoice.deposit).margin.toFixed(1)}%)</div>)}
+                                                <div className="text-xl font-bold">Total: {formatCurrency(calculateTotals(currentInvoice.items, currentInvoice.discountValue, currentInvoice.discountType, currentInvoice.taxRate, currentInvoice.deposit, currentInvoice.expenses).total)}</div>
+                                                
+                                                {/* PROFIT HEALTH CHECK */}
+                                                {(() => {
+                                                    const { profit, margin } = calculateTotals(currentInvoice.items, currentInvoice.discountValue, currentInvoice.discountType, currentInvoice.taxRate, currentInvoice.deposit, currentInvoice.expenses);
+                                                    let marginColor = 'text-emerald-600';
+                                                    if (margin < 15) marginColor = 'text-red-600';
+                                                    else if (margin < 35) marginColor = 'text-amber-600';
+                                                    return (
+                                                        <div className={`text-sm pt-2 border-t mt-2 flex justify-end items-center gap-2 ${marginColor}`}>
+                                                            <span className="font-bold">Net Profit: {formatCurrency(profit)}</span>
+                                                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${margin < 15 ? 'bg-red-100' : (margin < 35 ? 'bg-amber-100' : 'bg-emerald-100')}`}>{margin.toFixed(1)}% Margin</span>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </div>
@@ -1660,6 +1489,9 @@
                     </main>
 
                     {/* OVERLAYS AT ROOT LEVEL FOR Z-INDEX CORRECTNESS */}
+                    <BatchReminderModal isOpen={automationOpen} onClose={() => setAutomationOpen(false)} overdueInvoices={invoices.filter(inv => (inv.status === 'Pending' || inv.status === 'Overdue') && new Date(inv.dueDate) < new Date())} settings={settings} showToast={showToast} sendEmail={sendEmail} />
+                    <SignatureModal isOpen={showSignaturePad} onClose={() => setShowSignaturePad(false)} onSave={(sig) => { setCurrentInvoice({...currentInvoice, clientSignature: sig}); setShowSignaturePad(false); }} />
+                    
                     {modal.isOpen && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] animate-fade-in"><div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full mx-4 animate-slide-up"><h3 className="font-bold text-lg mb-2 text-slate-800">{modal.title}</h3><p className="text-slate-600 mb-6">{modal.message}</p><div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setModal({ ...modal, isOpen: false })}>Cancel</Button><Button onClick={() => { setModal({ ...modal, isOpen: false }); modal.onConfirm(); }}>Confirm</Button></div></div></div>)}
                     {toast.show && (<div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium animate-slide-up z-[110] ${toast.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>{toast.message}</div>)}
                     {loading && (<div className="loading-overlay"><div className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div><div>Processing...</div></div></div>)}
